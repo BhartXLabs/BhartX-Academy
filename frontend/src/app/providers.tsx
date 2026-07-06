@@ -21,8 +21,26 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const hydrate = useAuthStore((state) => state.hydrate);
 
   useEffect(() => {
-    // Read user tokens from localstorage safely on client mount
-    hydrate();
+    const initAuth = async () => {
+      // Hydrate localstorage state first
+      hydrate();
+      
+      // Cross-check session against cookies by fetching profile
+      try {
+        const { apiFetch } = await import("@/utils/api");
+        const user = await apiFetch("/auth/me");
+        if (user) {
+          useAuthStore.setState({ user, isAuthenticated: true });
+        }
+      } catch (e) {
+        // If profile fetch fails and local tokens are empty, log out
+        const hasToken = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        if (!hasToken) {
+          useAuthStore.getState().clearAuth();
+        }
+      }
+    };
+    initAuth();
   }, [hydrate]);
 
   return (

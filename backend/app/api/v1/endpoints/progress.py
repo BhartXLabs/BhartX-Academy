@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
 from app.api.v1.endpoints.auth import get_current_user
 from app.repositories.progress import progress_repo
 from app.repositories.user import user_repo
@@ -9,12 +9,22 @@ from app.schemas.course import ProgressUpdate, ProgressResponse, ReflectionCreat
 
 router = APIRouter()
 
+def schedule_spaced_revisions_task(user_id: int, lesson_id: int):
+    db = SessionLocal()
+    try:
+        progress_repo.schedule_spaced_revisions(db, user_id, lesson_id)
+    except Exception as e:
+        import logging
+        logging.error(f"Error executing revision schedule background task: {e}")
+    finally:
+        db.close()
+
 @router.get("/lessons/{lesson_id}", response_model=ProgressResponse)
 def get_lesson_progress(lesson_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return progress_repo.get_or_create_progress(db, current_user.id, lesson_id)
 
 @router.post("/lessons/{lesson_id}", response_model=ProgressResponse)
-def update_lesson_progress(lesson_id: int, progress_in: ProgressUpdate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def update_lesson_progress(lesson_id: int, progress_in: ProgressUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     progress = progress_repo.get_or_create_progress(db, current_user.id, lesson_id)
     
     # Track complete transitions to award XP
@@ -32,6 +42,8 @@ def update_lesson_progress(lesson_id: int, progress_in: ProgressUpdate, db: Sess
     # Award XP if completed for the first time
     if not was_completed and updated.status == "completed":
         user_repo.update_streak_and_xp(db, current_user, xp_gain=50) # 50 XP for lesson completion
+        # Offload revision scheduling to a background thread task
+        background_tasks.add_task(schedule_spaced_revisions_task, current_user.id, lesson_id)
         
     return updated
 

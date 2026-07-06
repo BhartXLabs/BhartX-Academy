@@ -25,6 +25,7 @@ export async function apiFetch(path: string, options: RequestOptions = {}) {
   }
 
   fetchOptions.headers = headers;
+  fetchOptions.credentials = "include";
 
   try {
     let response = await fetch(url, fetchOptions);
@@ -37,6 +38,7 @@ export async function apiFetch(path: string, options: RequestOptions = {}) {
         const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ refresh_token: refreshToken }),
         });
 

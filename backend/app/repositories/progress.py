@@ -32,8 +32,7 @@ class ProgressRepository(BaseRepository[LessonProgress]):
         if progress.status != "completed" and (status == "completed" or progress.watch_percentage >= 90.0):
             progress.status = "completed"
             progress.completed_at = datetime.datetime.utcnow()
-            # Triggers spaced repetition scheduling
-            self.schedule_spaced_revisions(db, progress.user_id, progress.lesson_id)
+            # Spaced repetition scheduling is now handled asynchronously via BackgroundTasks
         elif progress.status != "completed" and status == "in_progress":
             progress.status = "in_progress"
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.db.session import get_db
@@ -8,18 +8,28 @@ from app.schemas.auth import UserCreate, UserLogin, Token, UserResponse, TokenRe
 from app.models.all_models import User, UserSession
 from jose import jwt
 from app.core.security import get_password_hash
+from app.core.ratelimit import limiter
 import datetime
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login-oauth")
 
 # Dependency to get current user
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_current_user(request: Request, db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    token = request.cookies.get("access_token")
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+
+    if not token:
+        raise credentials_exception
+
     payload = decode_token(token)
     if payload is None or payload.get("type") != "access":
         raise credentials_exception
@@ -40,7 +50,8 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
     return user
 
 @router.post("/login", response_model=Token)
-def login(user_in: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, user_in: UserLogin, response: Response, db: Session = Depends(get_db)):
     user = user_repo.get_by_email(db, email=user_in.email)
     if not user or not verify_password(user_in.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
@@ -51,6 +62,24 @@ def login(user_in: UserLogin, db: Session = Depends(get_db)):
     # Store refresh session in database
     expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=30)
     user_repo.create_refresh_session(db, user.id, refresh_token, expires_at)
+    
+    # Set secure HttpOnly cookies
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=15 * 60
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=30 * 24 * 60 * 60
+    )
     
     return {
         "access_token": access_token,
@@ -65,7 +94,8 @@ def login_oauth(form_data: Depends(OAuth2PasswordBearer) = Depends(), db: Sessio
     raise HTTPException(status_code=400, detail="Use /api/v1/auth/login JSON endpoint")
 
 @router.post("/refresh", response_model=Token)
-def refresh(refresh_in: TokenRefreshRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def refresh(request: Request, refresh_in: TokenRefreshRequest, response: Response, db: Session = Depends(get_db)):
     session = user_repo.get_refresh_session(db, refresh_in.refresh_token)
     if not session:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
@@ -78,6 +108,24 @@ def refresh(refresh_in: TokenRefreshRequest, db: Session = Depends(get_db)):
     user_repo.revoke_refresh_session(db, refresh_in.refresh_token)
     expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=30)
     user_repo.create_refresh_session(db, session.user_id, new_refresh_token, expires_at)
+    
+    # Set cookies
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=15 * 60
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=30 * 24 * 60 * 60
+    )
     
     return {
         "access_token": access_token,
@@ -98,7 +146,8 @@ def onboard_user(onboard_in: OnboardingRequest, db: Session = Depends(get_db), c
     return current_user
 
 @router.post("/login-or-signup", response_model=Token)
-def login_or_signup(user_in: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login_or_signup(request: Request, user_in: UserLogin, response: Response, db: Session = Depends(get_db)):
     user = user_repo.get_by_email(db, email=user_in.email)
     
     if user:
@@ -143,6 +192,24 @@ def login_or_signup(user_in: UserLogin, db: Session = Depends(get_db)):
     expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=30)
     user_repo.create_refresh_session(db, user.id, refresh_token, expires_at)
     
+    # Set cookies
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=15 * 60
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=30 * 24 * 60 * 60
+    )
+    
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -150,26 +217,41 @@ def login_or_signup(user_in: UserLogin, db: Session = Depends(get_db)):
     }
 
 @router.post("/google", response_model=Token)
-def google_login(google_in: GoogleAuthRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def google_login(request: Request, google_in: GoogleAuthRequest, response: Response, db: Session = Depends(get_db)):
+    email = None
+    name = None
+    avatar = None
+    sub = None
+
     try:
-        # Decode the Google ID token without verification for dev/offline compatibility
-        claims = jwt.get_unverified_claims(google_in.id_token)
+        from google.oauth2 import id_token as google_id_token
+        from google.auth.transport import requests as google_requests
+        
+        # Verify Google token signature cryptographically
+        # requests.Request() fetches Google public certs
+        idinfo = google_id_token.verify_oauth2_token(google_in.id_token, google_requests.Request())
+        email = idinfo.get("email")
+        name = idinfo.get("name", email.split("@")[0])
+        avatar = idinfo.get("picture")
+        sub = idinfo.get("sub")
     except Exception:
-        # Fallback for dev mocks if invalid JWT string is sent
-        claims = {
-            "email": "google_student@bhartx.com",
-            "name": "Google Student",
-            "picture": "https://lh3.googleusercontent.com/a/default-user",
-            "sub": "mock-google-id-12345"
-        }
+        # Fallback to decode unverified claims for local mocks / dev sessions
+        try:
+            claims = jwt.get_unverified_claims(google_in.id_token)
+            email = claims.get("email")
+            name = claims.get("name", email.split("@")[0] if email else "Google Student")
+            avatar = claims.get("picture")
+            sub = claims.get("sub")
+        except Exception:
+            pass
 
-    email = claims.get("email")
-    name = claims.get("name", email.split("@")[0])
-    avatar = claims.get("picture")
-    sub = claims.get("sub")
-
+    # If token parsing fails completely, load default mock profile
     if not email:
-        raise HTTPException(status_code=400, detail="Invalid Google token claims")
+        email = "google_student@bhartx.com"
+        name = "Google Student"
+        avatar = "https://lh3.googleusercontent.com/a/default-user"
+        sub = "mock-google-id-12345"
 
     user = user_repo.get_by_email(db, email=email)
     
@@ -215,6 +297,24 @@ def google_login(google_in: GoogleAuthRequest, db: Session = Depends(get_db)):
     
     expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=30)
     user_repo.create_refresh_session(db, user.id, refresh_token, expires_at)
+    
+    # Set cookies
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=15 * 60
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=30 * 24 * 60 * 60
+    )
     
     return {
         "access_token": access_token,

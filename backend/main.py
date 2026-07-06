@@ -5,6 +5,9 @@ from app.db.session import engine
 from app.models import all_models
 from app.api.v1.router import api_router
 from app.core.logging import LoggingMiddleware
+from app.core.ratelimit import limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
 
 # Initialize database schemas (auto-creates SQLite tables locally)
 all_models.Base.metadata.create_all(bind=engine)
@@ -15,6 +18,10 @@ app = FastAPI(
     version="1.0.0",
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
+
+# Connect slowapi rate limiters
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Setup CORS to allow Next.js local frontend access
 origins = [

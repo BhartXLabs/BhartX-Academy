@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON, Float
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON, Float, Index
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 
@@ -207,10 +207,13 @@ class Resource(Base):
 
 class LessonProgress(Base):
     __tablename__ = "lesson_progress"
+    __table_args__ = (
+        Index("idx_user_lesson", "user_id", "lesson_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    lesson_id = Column(Integer, ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    lesson_id = Column(Integer, ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False, index=True)
     status = Column(String, default="started")  # started, in_progress, completed
     watch_percentage = Column(Float, default=0.0)
     time_spent_seconds = Column(Integer, default=0)
@@ -225,10 +228,13 @@ class LessonProgress(Base):
 
 class LessonReflection(Base):
     __tablename__ = "lesson_reflections"
+    __table_args__ = (
+        Index("idx_user_reflection", "user_id", "lesson_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    lesson_id = Column(Integer, ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    lesson_id = Column(Integer, ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False, index=True)
     retrieval_text = Column(Text, nullable=False)  # Explain what they learned
     unresolved_question = Column(Text, nullable=True)  # What they still didn't understand
     submitted_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -239,12 +245,15 @@ class LessonReflection(Base):
 
 class SpacedRevision(Base):
     __tablename__ = "spaced_revisions"
+    __table_args__ = (
+        Index("idx_user_scheduled", "user_id", "scheduled_date"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    lesson_id = Column(Integer, ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    lesson_id = Column(Integer, ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False, index=True)
     stage = Column(Integer, default=1)  # 1 (1 day), 2 (3 days), 3 (7 days), 4 (15 days), 5 (30 days)
-    scheduled_date = Column(DateTime, nullable=False)
+    scheduled_date = Column(DateTime, nullable=False, index=True)
     is_completed = Column(Boolean, default=False)
     completed_at = Column(DateTime, nullable=True)
 
@@ -295,7 +304,7 @@ class MistakeJournal(Base):
     __tablename__ = "mistake_journals"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     question_text = Column(Text, nullable=False)
     options = Column(JSON, nullable=False)  # JSON array
     selected_option_index = Column(Integer, nullable=False)
@@ -304,9 +313,9 @@ class MistakeJournal(Base):
     explanation = Column(Text, nullable=True)
     source_type = Column(String, nullable=False)  # quiz, mock, video_prompt
     source_id = Column(Integer, nullable=True)  # ID of quiz or mock or video prompt
-    resolved = Column(Boolean, default=False)
+    resolved = Column(Boolean, default=False, index=True)
     reviewed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
     user = relationship("User", back_populates="mistakes")
 
@@ -344,12 +353,12 @@ class MockAttempt(Base):
     __tablename__ = "mock_attempts"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    mock_test_id = Column(Integer, ForeignKey("mock_tests.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    mock_test_id = Column(Integer, ForeignKey("mock_tests.id", ondelete="CASCADE"), nullable=False, index=True)
     score = Column(Float, default=0.0)
     total_questions = Column(Integer, nullable=False)
     review_palette = Column(JSON, nullable=True)  # Track flags like flagged, skipped, etc.
-    completed_at = Column(DateTime, default=datetime.datetime.utcnow)
+    completed_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
     user = relationship("User", back_populates="mock_attempts")
     mock_test = relationship("MockTest", back_populates="attempts")
@@ -359,12 +368,12 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String, nullable=False)
     message = Column(Text, nullable=False)
     type = Column(String, default="announcement")  # assignment, exam, reminder, announcement
-    is_read = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    is_read = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
     user = relationship("User", back_populates="notifications")
 

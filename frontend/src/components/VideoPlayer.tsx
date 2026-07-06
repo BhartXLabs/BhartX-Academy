@@ -33,6 +33,7 @@ export default function VideoPlayer({ videoId, prompts, onTriggerPrompt, onTimeU
         height: "100%",
         width: "100%",
         videoId: videoId,
+        host: "https://www.youtube-nocookie.com",
         playerVars: {
           autoplay: 0,
           controls: 1,
