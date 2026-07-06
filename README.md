@@ -17,8 +17,8 @@ Every feature on this platform must justify its existence by answering one quest
 
 ### The 5 Core Cognitive Engines
 1. **Learning Engine (Active Playback)**:
-   - Blocks passive scrolling by enforcing a **Pre-learning Focus Contract** checklist.
-   - Embeds **concept checks (in-video MCQs)** at specific playhead intervals. If a student fails or clears it, the state is dynamically captured.
+   - Enforces a **Pre-learning Focus Contract** checklist before active study.
+   - Integrates the **YouTube IFrame Player API** to pause video playback dynamically at custom timestamps, forcing the student to resolve **in-video MCQ checkpoints**.
    - Enforces **active retrieval (Feynman recall essay)** and confidence self-calibration (1-5 score rating) post-video.
 2. **Assessment Engine (Mastery gates)**:
    - Employs chapter-end **mastery gates requiring a &ge; 80% passing score** to unlock subsequent chapters.
@@ -38,6 +38,28 @@ Every feature on this platform must justify its existence by answering one quest
 
 ---
 
+## 🔑 Secure Authentication & Frictionless Onboarding
+
+### 1. Unified Single-Screen Auth Flow (Security First)
+To prevent **email enumeration attacks**, the system avoids checking email existence beforehand. Instead:
+- **Google First Placement**: A colorful Google login CTA sits at the top of the interface.
+- **Unified Email Form**: Enter email and password.
+  - The backend (`POST /api/v1/auth/login-or-signup`) internally evaluates the state. If the email exists, it logs the user in. If not, it creates a new account automatically and signs them in, bypassing registration screens.
+
+### 2. "First Success in 60 Seconds" Onboarding
+Rather than presenting long, blocking questionnaires:
+- **Step 1 (2 Clicks)**: New users only configure their target Name and Course ("NIELIT A-Level"), then click **"Start Learning"** to land straight on the dashboard.
+- **Step 2 (Progressive Profiling)**: Study durations, exam target dates, and weak areas are prompted as gentle, single-question cards at the top of the dashboard over subsequent sessions:
+  ```text
+  [Signup -> Name/Course] ──> [Dashboard] ──> [Daily time check] ──> [Exam Date check]
+  ```
+
+### 3. Session & Provider Tracking
+- **Analytical Updates**: `User` table stores social login providers, avatar URLs, login counts, and last login timestamps.
+- **`UserSession` Logs**: Tracks client browsers, devices, IP addresses, and login/logout times for security audits.
+
+---
+
 ## 🛠️ Developer Reference & Technical Architecture
 
 ### Tech Stack
@@ -48,6 +70,7 @@ Every feature on this platform must justify its existence by answering one quest
 ### Database Schema Overview
 The SQLite database file (`bhartx_academy.db`) maps 22 entities including:
 - **`User`**: Account profiles, streaking records, and onboarding responses.
+- **`UserSession`**: Browser, device, and login audit tracks.
 - **`Course`, `Subject`, `Chapter`, `Lesson`**: Hierarchical content trees.
 - **`VideoPrompt`**: Seeded MCQ metadata triggered at specific timestamps.
 - **`ProgressLog`**: Tracks playback position, percentage watched, and completion status.
@@ -92,4 +115,4 @@ Test the end-to-end flows with these pre-seeded accounts:
 | :--- | :--- | :--- | :--- |
 | **Student** | `student@bhartx.com` | `studentpassword` | Onboarded *(View growth metrics immediately)* |
 | **Admin** | `admin@bhartx.com` | `adminpassword` | Authorized Admin Center views |
-| **New Signup** | Register via tab | Select password | Triggers Onboarding Questionnaire Modal |
+| **New Signup** | Register via credentials | Select password | Triggers Onboarding Gateway Modal |
