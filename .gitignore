@@ -1,0 +1,26 @@
+# Node dependencies
+node_modules/
+.next/
+out/
+build/
+dist/
+.env
+.env.local
+
+# Python env and cache
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local Database
+*.db
+*.sqlite3
+
+# OS/Editor configurations
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
