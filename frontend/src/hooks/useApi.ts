@@ -243,13 +243,8 @@ export function useOnboardUser() {
       body: JSON.stringify(profile),
     }),
     onSuccess: (data) => {
-      // Invalidate queries and hydrate Zustand session
-      const setAuth = useAuthStore.getState().setAuth;
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
-      const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refreshToken") : "";
-      if (token && refreshToken) {
-        setAuth(token, refreshToken, data);
-      }
+      // Server sets HttpOnly cookies; just sync user profile to Zustand
+      useAuthStore.getState().setAuth(data);
       queryClient.invalidateQueries({ queryKey: ["user"] });
     }
   });
@@ -263,12 +258,8 @@ export function useLoginOrSignup() {
       method: "POST",
       body: JSON.stringify(credentials),
     }),
-    onSuccess: (data) => {
-      // Set local tokens and hydrate
-      if (typeof window !== "undefined") {
-        localStorage.setItem("token", data.access_token);
-        localStorage.setItem("refreshToken", data.refresh_token);
-      }
+    onSuccess: () => {
+      // HttpOnly cookies are set by server; no token storage needed client-side
       queryClient.invalidateQueries({ queryKey: ["user"] });
     }
   });
@@ -282,11 +273,8 @@ export function useGoogleLogin() {
       method: "POST",
       body: JSON.stringify({ id_token: idToken }),
     }),
-    onSuccess: (data) => {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("token", data.access_token);
-        localStorage.setItem("refreshToken", data.refresh_token);
-      }
+    onSuccess: () => {
+      // HttpOnly cookies are set by server; no token storage needed client-side
       queryClient.invalidateQueries({ queryKey: ["user"] });
     }
   });
@@ -310,12 +298,8 @@ export function useProfileUpdate() {
       body: JSON.stringify(profile),
     }),
     onSuccess: (data) => {
-      const setAuth = useAuthStore.getState().setAuth;
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
-      const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refreshToken") : "";
-      if (token && refreshToken) {
-        setAuth(token, refreshToken, data);
-      }
+      // Sync updated profile to Zustand state
+      useAuthStore.getState().setAuth(data);
       queryClient.invalidateQueries({ queryKey: ["user"] });
     }
   });

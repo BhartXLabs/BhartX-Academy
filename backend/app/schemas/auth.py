@@ -28,12 +28,14 @@ class UserResponse(UserBase):
         from_attributes = True
 
 class Token(BaseModel):
-    access_token: str
-    refresh_token: str
     token_type: str = "bearer"
+    message: str = "success"
 
 class TokenRefreshRequest(BaseModel):
-    refresh_token: str
+    # Refresh token is read from HttpOnly cookie server-side.
+    # This body field is kept optional for backward compatibility.
+    refresh_token: Optional[str] = None
+
 
 class GoogleAuthRequest(BaseModel):
     id_token: str

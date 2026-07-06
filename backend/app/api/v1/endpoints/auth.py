@@ -81,11 +81,8 @@ def login(request: Request, user_in: UserLogin, response: Response, db: Session 
         max_age=30 * 24 * 60 * 60
     )
     
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+    # Tokens are in HttpOnly cookies only — do not expose in response body
+    return {"token_type": "bearer", "message": "Login successful"}
 
 @router.post("/login-oauth")
 def login_oauth(form_data: Depends(OAuth2PasswordBearer) = Depends(), db: Session = Depends(get_db)):
@@ -96,7 +93,12 @@ def login_oauth(form_data: Depends(OAuth2PasswordBearer) = Depends(), db: Sessio
 @router.post("/refresh", response_model=Token)
 @limiter.limit("5/minute")
 def refresh(request: Request, refresh_in: TokenRefreshRequest, response: Response, db: Session = Depends(get_db)):
-    session = user_repo.get_refresh_session(db, refresh_in.refresh_token)
+    # Read refresh token from HttpOnly cookie first; fall back to request body
+    token = request.cookies.get("refresh_token") or refresh_in.refresh_token
+    if not token:
+        raise HTTPException(status_code=401, detail="Refresh token not found")
+
+    session = user_repo.get_refresh_session(db, token)
     if not session:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
     
@@ -104,12 +106,12 @@ def refresh(request: Request, refresh_in: TokenRefreshRequest, response: Respons
     access_token = create_access_token(subject=session.user_id)
     new_refresh_token = create_refresh_token(subject=session.user_id)
     
-    # Revoke old token and save new one
-    user_repo.revoke_refresh_session(db, refresh_in.refresh_token)
+    # Rotate: revoke old token and save new one
+    user_repo.revoke_refresh_session(db, token)
     expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=30)
     user_repo.create_refresh_session(db, session.user_id, new_refresh_token, expires_at)
     
-    # Set cookies
+    # Set new cookies
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -127,11 +129,8 @@ def refresh(request: Request, refresh_in: TokenRefreshRequest, response: Respons
         max_age=30 * 24 * 60 * 60
     )
     
-    return {
-        "access_token": access_token,
-        "refresh_token": new_refresh_token,
-        "token_type": "bearer"
-    }
+    return {"token_type": "bearer", "message": "Token refreshed"}
+
 
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user=Depends(get_current_user)):
@@ -140,7 +139,7 @@ def get_me(current_user=Depends(get_current_user)):
 @router.post("/onboard", response_model=UserResponse)
 def onboard_user(onboard_in: OnboardingRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     current_user.onboarded = True
-    current_user.onboarding_profile = onboard_in.dict()
+    current_user.onboarding_profile = onboard_in.model_dump()
     db.commit()
     db.refresh(current_user)
     return current_user
@@ -182,7 +181,7 @@ def login_or_signup(request: Request, user_in: UserLogin, response: Response, db
         user_id=user.id,
         device="Web Browser",
         browser="Next.js Client",
-        ip="127.0.0.1"
+        ip=request.client.host if request.client else "unknown"
     )
 
     access_token = create_access_token(subject=user.id)
@@ -209,11 +208,7 @@ def login_or_signup(request: Request, user_in: UserLogin, response: Response, db
         max_age=30 * 24 * 60 * 60
     )
     
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+    return {"token_type": "bearer", "message": "Login successful"}
 
 @router.post("/google", response_model=Token)
 @limiter.limit("5/minute")
@@ -229,7 +224,13 @@ def google_login(request: Request, google_in: GoogleAuthRequest, response: Respo
         
         # Verify Google token signature cryptographically
         # requests.Request() fetches Google public certs
-        idinfo = google_id_token.verify_oauth2_token(google_in.id_token, google_requests.Request())
+        # audience= validates that this token was issued for OUR app specifically
+        # Prevents tokens issued for other Google apps from being accepted
+        idinfo = google_id_token.verify_oauth2_token(
+            google_in.id_token,
+            google_requests.Request(),
+            audience=settings.GOOGLE_CLIENT_ID  # Must match GOOGLE_CLIENT_ID env var
+        )
         email = idinfo.get("email")
         name = idinfo.get("name", email.split("@")[0])
         avatar = idinfo.get("picture")
@@ -296,7 +297,7 @@ def google_login(request: Request, google_in: GoogleAuthRequest, response: Respo
         user_id=user.id,
         device="Google Auth Client",
         browser="OAuth API",
-        ip="127.0.0.1"
+        ip=request.client.host if request.client else "unknown"
     )
 
     access_token = create_access_token(subject=user.id)
@@ -323,11 +324,8 @@ def google_login(request: Request, google_in: GoogleAuthRequest, response: Respo
         max_age=30 * 24 * 60 * 60
     )
     
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+    # Tokens are in HttpOnly cookies only — do not expose in response body
+    return {"token_type": "bearer", "message": "Login successful"}
 
 @router.post("/profile-update", response_model=UserResponse)
 def profile_update(profile_in: ProfileUpdateRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):

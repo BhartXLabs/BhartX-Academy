@@ -9,74 +9,43 @@ interface User {
   xp: number;
   onboarded: boolean;
   onboarding_profile?: any;
+  avatar_url?: string;
 }
 
 interface AuthState {
-  token: string | null;
-  refreshToken: string | null;
   user: User | null;
   isAuthenticated: boolean;
   isHydrated: boolean;
-  setAuth: (token: string, refreshToken: string, user: User) => void;
+  setAuth: (user: User) => void;
   clearAuth: () => void;
   updateStats: (streak: number, xp: number) => void;
   hydrate: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  token: null,
-  refreshToken: null,
   user: null,
   isAuthenticated: false,
   isHydrated: false,
 
-  setAuth: (token, refreshToken, user) => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("token", token);
-      localStorage.setItem("refreshToken", refreshToken);
-      localStorage.setItem("user", JSON.stringify(user));
-    }
-    set({ token, refreshToken, user, isAuthenticated: true });
+  // Called after /auth/me succeeds — stores only non-sensitive user profile
+  setAuth: (user) => {
+    set({ user, isAuthenticated: true, isHydrated: true });
   },
 
   clearAuth: () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("token");
-      localStorage.removeItem("refreshToken");
-      localStorage.removeItem("user");
-    }
-    set({ token: null, refreshToken: null, user: null, isAuthenticated: false });
+    set({ user: null, isAuthenticated: false, isHydrated: true });
   },
 
   updateStats: (streak, xp) => {
     set((state) => {
       if (!state.user) return {};
-      const updatedUser = { ...state.user, streak, xp };
-      if (typeof window !== "undefined") {
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-      }
-      return { user: updatedUser };
+      return { user: { ...state.user, streak, xp } };
     });
   },
 
+  // Hydrate is called on app mount — session is checked via /auth/me cookie
+  // No localStorage reads; source of truth is the server cookie session
   hydrate: () => {
-    if (typeof window !== "undefined") {
-      const token = localStorage.getItem("token");
-      const refreshToken = localStorage.getItem("refreshToken");
-      const userStr = localStorage.getItem("user");
-      
-      if (token && refreshToken && userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          set({ token, refreshToken, user, isAuthenticated: true, isHydrated: true });
-          return;
-        } catch (e) {
-          localStorage.removeItem("token");
-          localStorage.removeItem("refreshToken");
-          localStorage.removeItem("user");
-        }
-      }
-    }
     set({ isHydrated: true });
-  }
+  },
 }));

@@ -22,22 +22,19 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      // Hydrate localstorage state first
+      // Mark as hydrated immediately (no localStorage to read)
       hydrate();
-      
-      // Cross-check session against cookies by fetching profile
+
+      // Validate session by fetching profile from server (uses HttpOnly cookie)
       try {
         const { apiFetch } = await import("@/utils/api");
         const user = await apiFetch("/auth/me");
         if (user) {
-          useAuthStore.setState({ user, isAuthenticated: true });
+          useAuthStore.getState().setAuth(user);
         }
-      } catch (e) {
-        // If profile fetch fails and local tokens are empty, log out
-        const hasToken = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        if (!hasToken) {
-          useAuthStore.getState().clearAuth();
-        }
+      } catch {
+        // No valid session cookie — ensure clean unauthenticated state
+        useAuthStore.getState().clearAuth();
       }
     };
     initAuth();

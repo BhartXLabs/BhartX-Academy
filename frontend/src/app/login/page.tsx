@@ -15,22 +15,96 @@ const authSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+// Extend Window interface for Google Identity Services
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: object) => void;
+          prompt: () => void;
+          renderButton: (element: HTMLElement, options: object) => void;
+        };
+      };
+    };
+  }
+}
+
 function LoginContent() {
   const router = useRouter();
   const { setAuth, isAuthenticated } = useAuthStore();
   const loginOrSignupMutation = useLoginOrSignup();
   const googleLoginMutation = useGoogleLogin();
-  
+
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
-    // If user is already logged in, send them directly to dashboard
     if (isAuthenticated) {
       router.push("/dashboard");
     }
   }, [isAuthenticated, router]);
+
+  // Load Google Identity Services script and initialize
+  useEffect(() => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) return; // GSI unavailable in dev without client ID
+
+    const loadGSI = () => {
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+      }
+    };
+
+    if (document.getElementById("google-gsi-script")) {
+      loadGSI();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "google-gsi-script";
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = loadGSI;
+    document.head.appendChild(script);
+  }, []);
+
+  // Called by Google GSI with the real credential (id_token)
+  const handleGoogleCredentialResponse = async (credentialResponse: { credential: string }) => {
+    setGoogleLoading(true);
+    setErrorMsg(null);
+    try {
+      await googleLoginMutation.mutateAsync(credentialResponse.credential);
+      // Fetch user profile (cookie is now set by server)
+      const userProfile = await apiFetch("/auth/me");
+      setAuth(userProfile);
+      router.push("/dashboard");
+    } catch (err: any) {
+      setErrorMsg(err.message || "Google Authentication failed.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleButtonClick = () => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId || !window.google) {
+      setErrorMsg("Google Sign-In is not configured. Please use email login.");
+      return;
+    }
+    setGoogleLoading(true);
+    window.google.accounts.id.prompt();
+    // googleLoading will be reset inside handleGoogleCredentialResponse
+    // Safety reset in case user closes the popup
+    setTimeout(() => setGoogleLoading(false), 5000);
+  };
 
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(authSchema)
@@ -40,36 +114,15 @@ function LoginContent() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      // Calls unified login-or-signup endpoint
-      const tokenData = await loginOrSignupMutation.mutateAsync(data);
-      
-      // Fetch user profile using token
+      await loginOrSignupMutation.mutateAsync(data);
+      // Fetch user profile (cookie is now set by server)
       const userProfile = await apiFetch("/auth/me");
-      
-      setAuth(tokenData.access_token, tokenData.refresh_token, userProfile);
+      setAuth(userProfile);
       router.push("/dashboard");
     } catch (err: any) {
       setErrorMsg(err.message || "Authentication failed. Verify credentials.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Google OAuth flow simulation (completely free / no API console requirements for dev)
-  const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    setErrorMsg(null);
-    try {
-      // Send mock id_token to backend, which falls back to generating a Google Student user
-      const tokenData = await googleLoginMutation.mutateAsync("mock-google-jwt-token");
-      
-      const userProfile = await apiFetch("/auth/me");
-      setAuth(tokenData.access_token, tokenData.refresh_token, userProfile);
-      router.push("/dashboard");
-    } catch (err: any) {
-      setErrorMsg(err.message || "Google Authentication failed.");
-    } finally {
-      setGoogleLoading(false);
     }
   };
 
@@ -79,7 +132,7 @@ function LoginContent() {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-brand-500/10 rounded-full blur-[80px] pointer-events-none" />
 
       <div className="w-full max-w-md bg-card-dark border border-border rounded-2xl p-8 shadow-2xl relative z-10 space-y-6">
-        
+
         {/* Header Title */}
         <div className="flex flex-col items-center text-center">
           <span className="text-2xl font-extrabold bg-gradient-to-r from-brand-500 to-indigo-400 bg-clip-text text-transparent">
@@ -98,31 +151,19 @@ function LoginContent() {
 
         {/* 1. Google OAuth (Primary CTA) */}
         <button
-          onClick={handleGoogleLogin}
+          onClick={handleGoogleButtonClick}
           disabled={googleLoading || loading}
-          className="w-full py-2.5 px-4 rounded-lg bg-white hover:bg-gray-100 text-gray-900 text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-lg"
+          className="w-full py-2.5 px-4 rounded-lg bg-white hover:bg-gray-100 text-gray-900 text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-60"
         >
           {googleLoading ? (
             <Loader2 className="w-4 h-4 animate-spin text-gray-900" />
           ) : (
             <>
               <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                />
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
               </svg>
               <span>Continue with Google</span>
             </>

@@ -1,0 +1,50 @@
+# BhartX Academy — Render.com Service Configuration
+# Docs: https://render.com/docs/yaml-spec
+#
+# SETUP INSTRUCTIONS:
+# 1. Push this file to your repo root
+# 2. On Render Dashboard → New → Blueprint → connect repo
+# 3. Fill in the secret env vars in Render Dashboard (SECRET_KEY, GOOGLE_CLIENT_ID, GEMINI_API_KEY)
+# 4. Click "Apply" — Render will create backend + database automatically
+
+services:
+  # ── FastAPI Backend ───────────────────────────────────────────────────────
+  - type: web
+    name: bhartx-academy-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    region: singapore  # Closest to India
+    plan: starter      # Upgrade to standard when user count grows
+
+    healthCheckPath: /health  # Render pings this to verify service is alive
+
+    envVars:
+      - key: ENV
+        value: production
+
+      - key: SECRET_KEY
+        generateValue: true  # Render auto-generates a secure random value
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bhartx-academy-db
+          property: connectionString
+
+      - key: ALLOWED_ORIGINS
+        value: https://bhartx-academy.vercel.app  # Update with your actual Vercel URL
+
+      # Set these manually in Render Dashboard (never commit real values):
+      - key: GOOGLE_CLIENT_ID
+        sync: false  # Must be set manually in Render dashboard
+
+      - key: GEMINI_API_KEY
+        sync: false  # Must be set manually in Render dashboard
+
+  # ── PostgreSQL Database ───────────────────────────────────────────────────
+databases:
+  - name: bhartx-academy-db
+    databaseName: bhartx_academy
+    user: bhartx_user
+    region: singapore
+    plan: starter  # Render free-tier PostgreSQL (90-day trial, then paid)

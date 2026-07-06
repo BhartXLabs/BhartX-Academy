@@ -16,49 +16,31 @@ export async function apiFetch(path: string, options: RequestOptions = {}) {
     headers.set("Content-Type", "application/json");
   }
 
-  // Inject Access Token
-  if (!skipAuth) {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
-  }
-
   fetchOptions.headers = headers;
+  // Always include cookies for HttpOnly session auth
   fetchOptions.credentials = "include";
 
   try {
     let response = await fetch(url, fetchOptions);
 
-    // Auto Refresh Token Interceptor
+    // Auto-refresh: if access token cookie expired, call /auth/refresh via cookie
     if (response.status === 401 && !skipAuth) {
-      const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null;
-      if (refreshToken) {
-        // Attempt Token Refresh
-        const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        });
+      const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        // Refresh token is already in the HttpOnly cookie, no body needed
+        body: JSON.stringify({}),
+      });
 
-        if (refreshResponse.ok) {
-          const data = await refreshResponse.json();
-          // Update Zustand storage
-          if (typeof window !== "undefined") {
-            localStorage.setItem("token", data.access_token);
-            localStorage.setItem("refreshToken", data.refresh_token);
-          }
-          // Retry the original request
-          headers.set("Authorization", `Bearer ${data.access_token}`);
-          fetchOptions.headers = headers;
-          response = await fetch(url, fetchOptions);
-        } else {
-          // Refresh failed, sign out student
-          useAuthStore.getState().clearAuth();
-          if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-            window.location.href = "/login";
-          }
+      if (refreshResponse.ok) {
+        // New cookies are set by the server; retry the original request
+        response = await fetch(url, fetchOptions);
+      } else {
+        // Refresh failed — clear client state and redirect to login
+        useAuthStore.getState().clearAuth();
+        if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+          window.location.href = "/login";
         }
       }
     }

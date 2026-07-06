@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.repositories.base import BaseRepository
 from app.models.all_models import LessonProgress, LessonReflection, SpacedRevision, Lesson, QuizAttempt, Quiz, Chapter
 import datetime
@@ -84,14 +84,24 @@ class ProgressRepository(BaseRepository[LessonProgress]):
 
     def get_spaced_revisions_due(self, db: Session, user_id: int) -> List[SpacedRevision]:
         now = datetime.datetime.utcnow()
-        return db.query(SpacedRevision).filter(
-            SpacedRevision.user_id == user_id,
-            SpacedRevision.is_completed == False,
-            SpacedRevision.scheduled_date <= now
-        ).all()
+        return (
+            db.query(SpacedRevision)
+            .options(joinedload(SpacedRevision.lesson))  # Eager load lesson in one JOIN query
+            .filter(
+                SpacedRevision.user_id == user_id,
+                SpacedRevision.is_completed == False,
+                SpacedRevision.scheduled_date <= now
+            )
+            .all()
+        )
 
     def complete_spaced_revision(self, db: Session, revision_id: int) -> Optional[SpacedRevision]:
-        revision = db.query(SpacedRevision).filter(SpacedRevision.id == revision_id).first()
+        revision = (
+            db.query(SpacedRevision)
+            .options(joinedload(SpacedRevision.lesson))  # Eager load for lesson_title in response
+            .filter(SpacedRevision.id == revision_id)
+            .first()
+        )
         if revision:
             revision.is_completed = True
             revision.completed_at = datetime.datetime.utcnow()

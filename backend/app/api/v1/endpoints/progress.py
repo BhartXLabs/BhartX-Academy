@@ -70,11 +70,8 @@ def submit_reflection(lesson_id: int, reflection_in: ReflectionCreate, db: Sessi
 @router.get("/spaced-revisions", response_model=List[SpacedRevisionResponse])
 def get_spaced_revisions(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     revisions = progress_repo.get_spaced_revisions_due(db, current_user.id)
-    response = []
-    for r in revisions:
-        # Load lesson title placeholder
-        lesson = r.lesson
-        response.append({
+    return [
+        {
             "id": r.id,
             "user_id": r.user_id,
             "lesson_id": r.lesson_id,
@@ -82,9 +79,11 @@ def get_spaced_revisions(db: Session = Depends(get_db), current_user=Depends(get
             "scheduled_date": r.scheduled_date,
             "is_completed": r.is_completed,
             "completed_at": r.completed_at,
-            "lesson_title": lesson.title if lesson else "Lesson"
-        })
-    return response
+            # lesson is eagerly loaded via joinedload in the repository
+            "lesson_title": r.lesson.title if r.lesson else "Lesson"
+        }
+        for r in revisions
+    ]
 
 @router.post("/spaced-revisions/{revision_id}/complete", response_model=SpacedRevisionResponse)
 def complete_revision(revision_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
