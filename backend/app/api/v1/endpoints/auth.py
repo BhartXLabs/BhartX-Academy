@@ -177,14 +177,13 @@ def login_or_signup(request: Request, user_in: UserLogin, response: Response, db
     user.last_login = datetime.datetime.utcnow()
     user.login_count += 1
     
-    session_log = UserSession(
+    user_repo.log_user_session(
+        db,
         user_id=user.id,
         device="Web Browser",
         browser="Next.js Client",
         ip="127.0.0.1"
     )
-    db.add(session_log)
-    db.commit()
 
     access_token = create_access_token(subject=user.id)
     refresh_token = create_refresh_token(subject=user.id)
@@ -292,14 +291,13 @@ def google_login(request: Request, google_in: GoogleAuthRequest, response: Respo
     user.last_login = datetime.datetime.utcnow()
     user.login_count += 1
     
-    session_log = UserSession(
+    user_repo.log_user_session(
+        db,
         user_id=user.id,
         device="Google Auth Client",
         browser="OAuth API",
         ip="127.0.0.1"
     )
-    db.add(session_log)
-    db.commit()
 
     access_token = create_access_token(subject=user.id)
     refresh_token = create_refresh_token(subject=user.id)

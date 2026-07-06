@@ -63,4 +63,15 @@ class UserRepository(BaseRepository[User]):
             session.is_revoked = True
             db.commit()
 
+    def log_user_session(self, db: Session, user_id: int, device: str, browser: str, ip: str) -> None:
+        from app.models.all_models import UserSession
+        session_log = UserSession(
+            user_id=user_id,
+            device=device,
+            browser=browser,
+            ip=ip
+        )
+        db.add(session_log)
+        db.commit()
+
 user_repo = UserRepository(User)
