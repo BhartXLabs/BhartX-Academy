@@ -5,10 +5,10 @@ import { useSearchParams } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Navbar from "@/components/Navbar";
 import Sidebar from "@/components/Sidebar";
-import { useCourses, useSpacedRevisions, useCompleteRevision, useCoachTip, useMistakeStats, useOnboardUser } from "@/hooks/useApi";
+import { useCourses, useSpacedRevisions, useCompleteRevision, useCoachTip, useMistakeStats, useProfileUpdate } from "@/hooks/useApi";
 import { useAuthStore } from "@/store/useAuthStore";
 import { apiFetch } from "@/utils/api";
-import { Play, RotateCcw, AlertTriangle, ArrowRight, Loader2, Sparkles, CheckCircle, ClipboardList, HelpCircle } from "lucide-react";
+import { Play, RotateCcw, ArrowRight, Loader2, Sparkles, CheckCircle, HelpCircle, Compass, Flame } from "lucide-react";
 import Link from "next/link";
 
 function DashboardContent() {
@@ -21,27 +21,24 @@ function DashboardContent() {
   // APIs
   const { data: courses = [] } = useCourses();
   const { data: revisions = [], refetch: refetchRevisions } = useSpacedRevisions();
-  const { data: coachTip, isLoading: coachLoading } = useCoachTip();
+  const { data: coachTip } = useCoachTip();
   const { data: mistakeStats, refetch: refetchMistakes } = useMistakeStats();
   const completeRevisionMutation = useCompleteRevision();
-  const onboardMutation = useOnboardUser();
+  const profileUpdateMutation = useProfileUpdate();
 
-  // Onboarding Form States
+  // Onboarding wizard states
   const [showOnboardModal, setShowOnboardModal] = useState(false);
-  const [whoAreYou, setWhoAreYou] = useState("Student");
-  const [whyLearning, setWhyLearning] = useState("Government Job Prep");
-  const [examDate, setExamDate] = useState("July 2026");
-  const [dailyTime, setDailyTime] = useState("2 hours");
-  const [weakSubjects, setWeakSubjects] = useState<string[]>([]);
-  const [strongSubjects, setStrongSubjects] = useState<string[]>([]);
-  const [knowledgeLevel, setKnowledgeLevel] = useState("Beginner");
+  const [studentName, setStudentName] = useState("");
+  const [selectedCourse, setSelectedCourse] = useState("A-Level");
 
   useEffect(() => {
-    // Show onboarding questionnaire if user holds onboarded = false
-    if (user && user.onboarded === false) {
-      setShowOnboardModal(true);
-    } else {
-      setShowOnboardModal(false);
+    if (user) {
+      setStudentName(user.name || "");
+      if (user.onboarded === false) {
+        setShowOnboardModal(true);
+      } else {
+        setShowOnboardModal(false);
+      }
     }
   }, [user]);
 
@@ -70,49 +67,51 @@ function DashboardContent() {
     });
   };
 
-  const handleToggleWeak = (sub: string) => {
-    setWeakSubjects((prev) =>
-      prev.includes(sub) ? prev.filter((s) => s !== sub) : [...prev, sub]
-    );
-  };
-
-  const handleToggleStrong = (sub: string) => {
-    setStrongSubjects((prev) =>
-      prev.includes(sub) ? prev.filter((s) => s !== sub) : [...prev, sub]
-    );
-  };
-
-  const handleSubmitOnboarding = () => {
-    onboardMutation.mutate({
-      who_are_you: whoAreYou,
-      why_learning: whyLearning,
-      exam_date: examDate,
-      daily_time: dailyTime,
-      weak_subjects: weakSubjects,
-      strong_subjects: strongSubjects,
-      knowledge_level: knowledgeLevel
+  // Click handler for Onboarding Gateway
+  const handleStartLearning = () => {
+    if (!studentName.trim()) return;
+    profileUpdateMutation.mutate({
+      name: studentName,
+      course: selectedCourse,
+      onboarded: true
     }, {
       onSuccess: () => {
         setShowOnboardModal(false);
-        refetchMistakes();
-        refetchRevisions();
       }
     });
   };
 
-  // Generate personalized greeting tips based on student's onboarding responses
+  // Profile Completion Engine click handlers
+  const handleSelectDailyTime = (time: string) => {
+    profileUpdateMutation.mutate({ daily_time: time });
+  };
+
+  const handleSelectExamDate = (date: string) => {
+    profileUpdateMutation.mutate({ exam_date: date });
+  };
+
+  const handleSelectWeakSubject = (subject: string) => {
+    profileUpdateMutation.mutate({ weak_subjects: [subject] });
+  };
+
+  // Generate dynamic AI Welcome / Greeting tips
   const getPersonalizedCoachGreeting = () => {
     if (!user) return "";
-    if (user.onboarding_profile) {
-      const profile = user.onboarding_profile;
+    const profile = user.onboarding_profile || {};
+    
+    if (profile.daily_time && profile.exam_date) {
       const weakStr = profile.weak_subjects?.join(", ") || "Python Programming";
       return (
-        `Namaste ${user.name}! Your cognitive growth plan is active. We are targeting your ` +
-        `upcoming ${profile.exam_date} exams. Since you flagged [${weakStr}] as areas for improvement, ` +
-        `let's allocate ${profile.daily_time} today. We recommend beginning with Python chapter lessons!`
+        `Welcome back, ${user.name}! Let's make today productive. Our AI Engine has set a ` +
+        `${profile.daily_time} study goal towards your ${profile.exam_date} exams. Let's focus on ` +
+        `mastering [${weakStr}] concept lessons today!`
       );
     }
-    return coachTip?.answer || "Your personalized Socratic study goals are loading...";
+    
+    return (
+      `Welcome, ${user.name} 👋 I'm your AI Learning Coach. Let's make today productive. ` +
+      `Start your first lesson below, and let's work to unlock your best possible version!`
+    );
   };
 
   // Static mock variables for learning heatmap & cognitive mastery metrics
@@ -127,6 +126,8 @@ function DashboardContent() {
     { label: "Study Consistency", value: 90, desc: "Active daily streak rate" },
     { label: "Cognitive Focus", value: 85, desc: "Undistracted workspace sessions" }
   ];
+
+  const profile = user?.onboarding_profile || {};
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-bg-dark">
@@ -170,7 +171,7 @@ function DashboardContent() {
           ) : (
             /* Dashboard widgets */
             <>
-              {/* Dynamic Coach Greeting */}
+              {/* Dynamic Coach Greeting Header */}
               <div className="p-5 rounded-2xl border border-brand-500/10 bg-brand-glow/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-brand-500/10 rounded-full blur-xl pointer-events-none" />
                 <div className="flex items-start gap-3">
@@ -178,17 +179,85 @@ function DashboardContent() {
                     <Sparkles className="w-5 h-5 fill-brand-500/20" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold text-foreground">Cognitive Assistant</h2>
+                    <h2 className="text-sm font-bold text-foreground">AI Learning Coach</h2>
                     <p className="text-xs text-gray-300 mt-1 leading-relaxed max-w-2xl">
                       {getPersonalizedCoachGreeting()}
                     </p>
                   </div>
                 </div>
                 <Link href="/courses/3" className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5 shrink-0 self-end md:self-auto">
-                  <span>Open Class</span>
-                  <Play className="w-3.5 h-3.5 fill-white" />
+                  <span>Start First Lesson</span>
+                  <Play className="w-3.5 h-3.5 fill-white animate-pulse" />
                 </Link>
               </div>
+
+              {/* Profile Completion Engine (Progressive Micro-Onboarding prompts) */}
+              {user?.onboarded && (
+                <div className="space-y-4">
+                  {/* Step A: Daily study duration */}
+                  {!profile.daily_time && (
+                    <div className="p-5 rounded-2xl border border-border bg-card-dark flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div>
+                        <span className="text-[10px] font-bold text-brand-500 uppercase tracking-wider">AI Question check</span>
+                        <h3 className="text-xs font-bold text-foreground mt-0.5">How much time can you allocate to study today?</h3>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {["15 min", "30 min", "1 hour", "2+ hours"].map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => handleSelectDailyTime(t)}
+                            className="px-3.5 py-1.5 rounded-lg border border-border bg-bg-dark text-[11px] font-semibold text-gray-300 hover:border-brand-500 hover:text-foreground transition-all"
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step B: Exam Date (only show if daily_time completed but no exam_date) */}
+                  {profile.daily_time && !profile.exam_date && (
+                    <div className="p-5 rounded-2xl border border-border bg-card-dark flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div>
+                        <span className="text-[10px] font-bold text-brand-500 uppercase tracking-wider">AI Question check</span>
+                        <h3 className="text-xs font-bold text-foreground mt-0.5">When is your target exam date?</h3>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {["July 2026", "January 2027"].map((d) => (
+                          <button
+                            key={d}
+                            onClick={() => handleSelectExamDate(d)}
+                            className="px-3.5 py-1.5 rounded-lg border border-border bg-bg-dark text-[11px] font-semibold text-gray-300 hover:border-brand-500 hover:text-foreground transition-all"
+                          >
+                            {d}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step C: Weak areas (only show if exam_date completed but no weak_subjects) */}
+                  {profile.exam_date && (!profile.weak_subjects || profile.weak_subjects.length === 0) && (
+                    <div className="p-5 rounded-2xl border border-border bg-card-dark flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div>
+                        <span className="text-[10px] font-bold text-brand-500 uppercase tracking-wider">AI Question check</span>
+                        <h3 className="text-xs font-bold text-foreground mt-0.5">Which syllabus area do you find most difficult?</h3>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {["Python Programming", "Database Technologies", "Operating Systems", "IT Tools & Networking"].map((sub) => (
+                          <button
+                            key={sub}
+                            onClick={() => handleSelectWeakSubject(sub)}
+                            className="px-3.5 py-1.5 rounded-lg border border-border bg-bg-dark text-[11px] font-semibold text-gray-300 hover:border-brand-500 hover:text-foreground transition-all"
+                          >
+                            {sub}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Subordinate Grid: Revisions and Streaks */}
               <div className="grid md:grid-cols-3 gap-6">
@@ -247,7 +316,7 @@ function DashboardContent() {
                 </div>
               </div>
 
-              {/* Cognitive Mastery Index dashboard (Radar-style equivalent grids) */}
+              {/* Cognitive Mastery Index dashboard */}
               <div className="p-5 rounded-2xl border border-border bg-card-dark space-y-4">
                 <div className="pb-3 border-b border-border">
                   <span className="text-xs font-extrabold text-foreground">Cognitive Growth Metrics</span>
@@ -299,141 +368,61 @@ function DashboardContent() {
             </>
           )}
 
-          {/* Onboarding Profile questionnaire modal */}
+          {/* 60-Second Onboarding Gateway Modal */}
           {showOnboardModal && (
-            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-              <div className="w-full max-w-2xl bg-card-dark border border-border rounded-2xl p-8 shadow-2xl space-y-6 my-8">
-                <div className="pb-3 border-b border-border text-center">
-                  <span className="px-3 py-1 rounded-full bg-brand-glow border border-brand-500/20 text-brand-500 text-[10px] font-bold flex items-center gap-1.5 w-max mx-auto mb-3">
-                    <Sparkles className="w-3.5 h-3.5 animate-spin text-brand-500" />
-                    Cognitive Setup
-                  </span>
-                  <h2 className="text-sm font-extrabold text-foreground">Establish Your Learning Profile</h2>
-                  <p className="text-[10px] text-gray-500 mt-1">Our AI Engine will customize your curriculum parameters based on your goals.</p>
+            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="w-full max-w-md bg-card-dark border border-border rounded-2xl p-6 shadow-2xl space-y-6 text-center">
+                
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold text-brand-500 uppercase tracking-wider block">First Step Gateway</span>
+                  <h2 className="text-base font-extrabold text-foreground">What do you want to learn?</h2>
+                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                    Set your focus course below. You can customize study durations later.
+                  </p>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-5 text-xs text-left">
-                  {/* Q1: Who are you */}
+                <div className="space-y-4 text-left">
+                  {/* Name field (Required if missing) */}
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Who are you?</label>
-                    <select
-                      value={whoAreYou}
-                      onChange={(e) => setWhoAreYou(e.target.value)}
-                      className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none"
-                    >
-                      <option>Student</option>
-                      <option>Working Professional</option>
-                      <option>Self-Educator</option>
-                    </select>
-                  </div>
-
-                  {/* Q2: Why learning */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Primary Motivation?</label>
-                    <select
-                      value={whyLearning}
-                      onChange={(e) => setWhyLearning(e.target.value)}
-                      className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none"
-                    >
-                      <option>Government Job Prep</option>
-                      <option>Career Switch</option>
-                      <option>Syllabus Exam</option>
-                    </select>
-                  </div>
-
-                  {/* Q3: Exam date */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Exam Date Target</label>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Your Name</label>
                     <input
                       type="text"
-                      value={examDate}
-                      onChange={(e) => setExamDate(e.target.value)}
+                      value={studentName}
+                      onChange={(e) => setStudentName(e.target.value)}
                       className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none"
-                      placeholder="e.g. July 2026"
+                      placeholder="Enter name"
                     />
                   </div>
 
-                  {/* Q4: Daily available time */}
+                  {/* Course select list */}
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Daily Study Time</label>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Course target</label>
                     <select
-                      value={dailyTime}
-                      onChange={(e) => setDailyTime(e.target.value)}
+                      value={selectedCourse}
+                      onChange={(e) => setSelectedCourse(e.target.value)}
                       className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none"
                     >
-                      <option>30 minutes</option>
-                      <option>1 hour</option>
-                      <option>2 hours</option>
-                      <option>4+ hours</option>
+                      <option value="A-Level">NIELIT A-Level (Diploma)</option>
+                      <option value="O-Level" disabled>NIELIT O-Level (Coming Soon)</option>
                     </select>
-                  </div>
-
-                  {/* Q5: Knowledge level */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Programming Experience</label>
-                    <select
-                      value={knowledgeLevel}
-                      onChange={(e) => setKnowledgeLevel(e.target.value)}
-                      className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none"
-                    >
-                      <option>Beginner</option>
-                      <option>Intermediate</option>
-                      <option>Experienced</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Checkboxes: weak and strong subjects */}
-                <div className="grid sm:grid-cols-2 gap-5 text-left text-xs pt-2">
-                  <div>
-                    <span className="block text-[10px] font-bold text-danger-500 uppercase tracking-wider mb-2">Select Weak Areas</span>
-                    <div className="space-y-1.5">
-                      {["Python Programming", "Database Technologies", "Operating System", "IT Tools & Networking"].map((sub) => (
-                        <label key={sub} className="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-foreground">
-                          <input
-                            type="checkbox"
-                            checked={weakSubjects.includes(sub)}
-                            onChange={() => handleToggleWeak(sub)}
-                            className="rounded border-gray-700 bg-bg-dark text-brand-500 focus:ring-brand-500"
-                          />
-                          <span>{sub}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="block text-[10px] font-bold text-emerald-500 uppercase tracking-wider mb-2">Select Strong Areas</span>
-                    <div className="space-y-1.5">
-                      {["Python Programming", "Database Technologies", "Operating System", "IT Tools & Networking"].map((sub) => (
-                        <label key={sub} className="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-foreground">
-                          <input
-                            type="checkbox"
-                            checked={strongSubjects.includes(sub)}
-                            onChange={() => handleToggleStrong(sub)}
-                            className="rounded border-gray-700 bg-bg-dark text-brand-500 focus:ring-brand-500"
-                          />
-                          <span>{sub}</span>
-                        </label>
-                      ))}
-                    </div>
                   </div>
                 </div>
 
                 <button
-                  onClick={handleSubmitOnboarding}
-                  disabled={onboardMutation.isPending}
-                  className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
+                  onClick={handleStartLearning}
+                  disabled={!studentName.trim() || profileUpdateMutation.isPending}
+                  className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
                 >
-                  {onboardMutation.isPending ? (
+                  {profileUpdateMutation.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <>
-                      <span>Commit Learning Contract</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <span>Start Learning</span>
+                      <ArrowRight className="w-4 h-4 animate-pulse" />
                     </>
                   )}
                 </button>
+
               </div>
             </div>
           )}

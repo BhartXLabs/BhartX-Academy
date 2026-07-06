@@ -20,6 +20,8 @@ class UserResponse(UserBase):
     xp: int
     onboarded: bool
     onboarding_profile: Optional[Any] = None
+    provider: Optional[str] = "email"
+    avatar_url: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -32,6 +34,19 @@ class Token(BaseModel):
 
 class TokenRefreshRequest(BaseModel):
     refresh_token: str
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str
+
+class ProfileUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    course: Optional[str] = None
+    daily_time: Optional[str] = None
+    onboarded: Optional[bool] = None
+    exam_date: Optional[str] = None
+    weak_subjects: Optional[List[str]] = None
+    strong_subjects: Optional[List[str]] = None
+    knowledge_level: Optional[str] = None
 
 class OnboardingRequest(BaseModel):
     who_are_you: str

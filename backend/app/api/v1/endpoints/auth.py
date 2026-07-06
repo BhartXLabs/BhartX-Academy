@@ -4,7 +4,10 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.repositories.user import user_repo
 from app.core.security import create_access_token, create_refresh_token, verify_password, decode_token
-from app.schemas.auth import UserCreate, UserLogin, Token, UserResponse, TokenRefreshRequest, OnboardingRequest
+from app.schemas.auth import UserCreate, UserLogin, Token, UserResponse, TokenRefreshRequest, OnboardingRequest, GoogleAuthRequest, ProfileUpdateRequest
+from app.models.all_models import User, UserSession
+from jose import jwt
+from app.core.security import get_password_hash
 import datetime
 
 router = APIRouter()
@@ -93,3 +96,157 @@ def onboard_user(onboard_in: OnboardingRequest, db: Session = Depends(get_db), c
     db.commit()
     db.refresh(current_user)
     return current_user
+
+@router.post("/login-or-signup", response_model=Token)
+def login_or_signup(user_in: UserLogin, db: Session = Depends(get_db)):
+    user = user_repo.get_by_email(db, email=user_in.email)
+    
+    if user:
+        # Case A: User exists, verify password
+        if not user.hashed_password or not verify_password(user_in.password, user.hashed_password):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password for this email")
+    else:
+        # Case B: User does not exist, auto-signup
+        default_name = user_in.email.split("@")[0]
+        # SQLModel / SQLAlchemy model insertion
+        user = User(
+            name=default_name.capitalize(),
+            email=user_in.email,
+            hashed_password=get_password_hash(user_in.password),
+            role="student",
+            provider="email",
+            onboarded=False,
+            xp=0,
+            streak=1,
+            login_count=0
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    # Update login metrics & create UserSession record
+    user.last_login = datetime.datetime.utcnow()
+    user.login_count += 1
+    
+    session_log = UserSession(
+        user_id=user.id,
+        device="Web Browser",
+        browser="Next.js Client",
+        ip="127.0.0.1"
+    )
+    db.add(session_log)
+    db.commit()
+
+    access_token = create_access_token(subject=user.id)
+    refresh_token = create_refresh_token(subject=user.id)
+    
+    expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=30)
+    user_repo.create_refresh_session(db, user.id, refresh_token, expires_at)
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
+
+@router.post("/google", response_model=Token)
+def google_login(google_in: GoogleAuthRequest, db: Session = Depends(get_db)):
+    try:
+        # Decode the Google ID token without verification for dev/offline compatibility
+        claims = jwt.get_unverified_claims(google_in.id_token)
+    except Exception:
+        # Fallback for dev mocks if invalid JWT string is sent
+        claims = {
+            "email": "google_student@bhartx.com",
+            "name": "Google Student",
+            "picture": "https://lh3.googleusercontent.com/a/default-user",
+            "sub": "mock-google-id-12345"
+        }
+
+    email = claims.get("email")
+    name = claims.get("name", email.split("@")[0])
+    avatar = claims.get("picture")
+    sub = claims.get("sub")
+
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid Google token claims")
+
+    user = user_repo.get_by_email(db, email=email)
+    
+    if user:
+        # Link Google details to email if it was previously email provider
+        if user.provider == "email":
+            user.provider = "google"
+            user.provider_id = sub
+            user.avatar_url = avatar
+    else:
+        # Create new Google user
+        user = User(
+            name=name,
+            email=email,
+            role="student",
+            provider="google",
+            provider_id=sub,
+            avatar_url=avatar,
+            onboarded=False,
+            xp=0,
+            streak=1,
+            login_count=0
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    # Update login metrics
+    user.last_login = datetime.datetime.utcnow()
+    user.login_count += 1
+    
+    session_log = UserSession(
+        user_id=user.id,
+        device="Google Auth Client",
+        browser="OAuth API",
+        ip="127.0.0.1"
+    )
+    db.add(session_log)
+    db.commit()
+
+    access_token = create_access_token(subject=user.id)
+    refresh_token = create_refresh_token(subject=user.id)
+    
+    expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=30)
+    user_repo.create_refresh_session(db, user.id, refresh_token, expires_at)
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
+
+@router.post("/profile-update", response_model=UserResponse)
+def profile_update(profile_in: ProfileUpdateRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if profile_in.name is not None:
+        current_user.name = profile_in.name
+    if profile_in.onboarded is not None:
+        current_user.onboarded = profile_in.onboarded
+
+    # Gradual profile updates to onboarding_profile JSON
+    profile = current_user.onboarding_profile or {}
+    
+    if profile_in.course is not None:
+        profile["course"] = profile_in.course
+    if profile_in.daily_time is not None:
+        profile["daily_time"] = profile_in.daily_time
+    if profile_in.exam_date is not None:
+        profile["exam_date"] = profile_in.exam_date
+    if profile_in.weak_subjects is not None:
+        profile["weak_subjects"] = profile_in.weak_subjects
+    if profile_in.strong_subjects is not None:
+        profile["strong_subjects"] = profile_in.strong_subjects
+    if profile_in.knowledge_level is not None:
+        profile["knowledge_level"] = profile_in.knowledge_level
+
+    current_user.onboarding_profile = profile
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+

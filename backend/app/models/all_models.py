@@ -9,17 +9,23 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
+    hashed_password = Column(String, nullable=True)
     role = Column(String, default="student")  # student, instructor, content_manager, admin, super_admin
     streak = Column(Integer, default=0)
     xp = Column(Integer, default=0)
     onboarded = Column(Boolean, default=False)
     onboarding_profile = Column(JSON, nullable=True)
+    provider = Column(String, default="email")
+    provider_id = Column(String, nullable=True)
+    avatar_url = Column(String, nullable=True)
+    last_login = Column(DateTime, nullable=True)
+    login_count = Column(Integer, default=0)
     last_active_date = Column(DateTime, default=datetime.datetime.utcnow)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Relationships
     refresh_sessions = relationship("RefreshSession", back_populates="user", cascade="all, delete-orphan")
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
     enrollments = relationship("Enrollment", back_populates="user", cascade="all, delete-orphan")
     progress_logs = relationship("LessonProgress", back_populates="user", cascade="all, delete-orphan")
     reflections = relationship("LessonReflection", back_populates="user", cascade="all, delete-orphan")
@@ -28,6 +34,21 @@ class User(Base):
     mock_attempts = relationship("MockAttempt", back_populates="user", cascade="all, delete-orphan")
     mistakes = relationship("MistakeJournal", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    device = Column(String, nullable=True)
+    browser = Column(String, nullable=True)
+    ip = Column(String, nullable=True)
+    login_at = Column(DateTime, default=datetime.datetime.utcnow)
+    logout_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="sessions")
+
 
 
 class RefreshSession(Base):

@@ -1,40 +1,29 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight, Mail } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useLoginOrSignup, useGoogleLogin } from "@/hooks/useApi";
 import { apiFetch } from "@/utils/api";
 
-const loginSchema = z.object({
-  email: z.string().email("Enter a valid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-});
-
-const signupSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+const authSchema = z.object({
   email: z.string().email("Enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 function LoginContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { setAuth, isAuthenticated } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
+  const loginOrSignupMutation = useLoginOrSignup();
+  const googleLoginMutation = useGoogleLogin();
+  
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    // Read optional tab param from URL
-    const tab = searchParams.get("tab");
-    if (tab === "signup") {
-      setActiveTab("signup");
-    }
-  }, [searchParams]);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     // If user is already logged in, send them directly to dashboard
@@ -43,202 +32,156 @@ function LoginContent() {
     }
   }, [isAuthenticated, router]);
 
-  // Hook Form setups
-  const { register: regLogin, handleSubmit: handleLoginSubmit, formState: { errors: loginErrors } } = useForm({
-    resolver: zodResolver(loginSchema)
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    resolver: zodResolver(authSchema)
   });
 
-  const { register: regSignup, handleSubmit: handleSignupSubmit, formState: { errors: signupErrors } } = useForm({
-    resolver: zodResolver(signupSchema)
-  });
-
-  const onLogin = async (data: any) => {
+  const onAuthSubmit = async (data: any) => {
     setLoading(true);
     setErrorMsg(null);
     try {
-      // 1. Post credentials to get tokens
-      const tokenData = await apiFetch("/auth/login", {
-        method: "POST",
-        body: JSON.stringify(data),
-        skipAuth: true,
-      });
-
-      // 2. Temporarily set token in localstorage to fetch user profile
-      localStorage.setItem("token", tokenData.access_token);
-
-      // 3. Fetch user details
-      const userProfile = await apiFetch("/auth/me");
-
-      // 4. Save to Zustand store
-      setAuth(tokenData.access_token, tokenData.refresh_token, userProfile);
+      // Calls unified login-or-signup endpoint
+      const tokenData = await loginOrSignupMutation.mutateAsync(data);
       
+      // Fetch user profile using token
+      const userProfile = await apiFetch("/auth/me");
+      
+      setAuth(tokenData.access_token, tokenData.refresh_token, userProfile);
       router.push("/dashboard");
     } catch (err: any) {
-      setErrorMsg(err.message || "Invalid credentials. Please try again.");
+      setErrorMsg(err.message || "Authentication failed. Verify credentials.");
     } finally {
       setLoading(false);
     }
   };
 
-  const onSignup = async (data: any) => {
-    setLoading(true);
+  // Google OAuth flow simulation (completely free / no API console requirements for dev)
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
     setErrorMsg(null);
     try {
-      // 1. Register student account
-      const regResponse = await apiFetch("/auth/register", {
-        method: "POST",
-        body: JSON.stringify({ ...data, role: "student" }),
-        skipAuth: true,
-      });
-
-      // 2. Perform auto login post registration
-      const tokenData = await apiFetch("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email: data.email, password: data.password }),
-        skipAuth: true,
-      });
-
-      localStorage.setItem("token", tokenData.access_token);
+      // Send mock id_token to backend, which falls back to generating a Google Student user
+      const tokenData = await googleLoginMutation.mutateAsync("mock-google-jwt-token");
+      
       const userProfile = await apiFetch("/auth/me");
       setAuth(tokenData.access_token, tokenData.refresh_token, userProfile);
-      
       router.push("/dashboard");
     } catch (err: any) {
-      setErrorMsg(err.message || "Registration failed. Try using a different email.");
+      setErrorMsg(err.message || "Google Authentication failed.");
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg-dark px-4 py-12 relative overflow-hidden">
-      {/* Background glow decoration */}
+      {/* Background decoration */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-brand-500/10 rounded-full blur-[80px] pointer-events-none" />
 
-      <div className="w-full max-w-md bg-card-dark border border-border rounded-2xl p-8 shadow-2xl relative z-10">
-        <div className="flex flex-col items-center mb-8">
+      <div className="w-full max-w-md bg-card-dark border border-border rounded-2xl p-8 shadow-2xl relative z-10 space-y-6">
+        
+        {/* Header Title */}
+        <div className="flex flex-col items-center text-center">
           <span className="text-2xl font-extrabold bg-gradient-to-r from-brand-500 to-indigo-400 bg-clip-text text-transparent">
             BhartX Academy
           </span>
           <p className="text-[10px] text-gray-500 uppercase tracking-widest mt-1 font-bold">
-            Cognitive Learning OS
+            Cognitive Growth Platform
           </p>
         </div>
 
-        {/* Tab Selection */}
-        <div className="flex border-b border-border mb-6">
-          <button
-            onClick={() => { setActiveTab("login"); setErrorMsg(null); }}
-            className={`flex-1 pb-3 text-xs font-bold transition-all text-center focus:outline-none ${activeTab === "login" ? 'border-b-2 border-brand-500 text-brand-500' : 'text-gray-500 hover:text-foreground'}`}
-          >
-            Log In
-          </button>
-          <button
-            onClick={() => { setActiveTab("signup"); setErrorMsg(null); }}
-            className={`flex-1 pb-3 text-xs font-bold transition-all text-center focus:outline-none ${activeTab === "signup" ? 'border-b-2 border-brand-500 text-brand-500' : 'text-gray-500 hover:text-foreground'}`}
-          >
-            Create Account
-          </button>
-        </div>
-
         {errorMsg && (
-          <div className="mb-4 p-3 rounded-lg border border-danger-500/20 bg-danger-500/10 text-danger-500 text-xs font-medium">
+          <div className="p-3 rounded-lg border border-danger-500/20 bg-danger-500/10 text-danger-500 text-xs font-medium">
             {errorMsg}
           </div>
         )}
 
-        {/* Login Form */}
-        {activeTab === "login" ? (
-          <form onSubmit={handleLoginSubmit(onLogin)} className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Email Address</label>
+        {/* 1. Google OAuth (Primary CTA) */}
+        <button
+          onClick={handleGoogleLogin}
+          disabled={googleLoading || loading}
+          className="w-full py-2.5 px-4 rounded-lg bg-white hover:bg-gray-100 text-gray-900 text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-lg"
+        >
+          {googleLoading ? (
+            <Loader2 className="w-4 h-4 animate-spin text-gray-900" />
+          ) : (
+            <>
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+              <span>Continue with Google</span>
+            </>
+          )}
+        </button>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-border/40" />
+          <span className="text-[10px] text-gray-500 font-bold uppercase">OR</span>
+          <div className="flex-1 h-px bg-border/40" />
+        </div>
+
+        {/* 2. Unified Credentials Form (Secondary CTA) */}
+        <form onSubmit={handleSubmit(onAuthSubmit)} className="space-y-4">
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Email Address</label>
+            <div className="relative">
               <input
                 type="email"
-                {...regLogin("email")}
-                className="w-full bg-bg-dark border border-border focus:border-brand-500 rounded-lg px-4 py-2.5 text-xs text-foreground focus:outline-none"
-                placeholder="you@example.com"
+                {...register("email")}
+                className="w-full bg-bg-dark border border-border focus:border-brand-500 rounded-lg pl-9 pr-4 py-2.5 text-xs text-foreground focus:outline-none"
+                placeholder="name@domain.com"
               />
-              {loginErrors.email && <span className="text-[10px] text-danger-500 mt-1 block">{loginErrors.email.message as string}</span>}
+              <Mail className="absolute left-3 top-3.5 w-3.5 h-3.5 text-gray-500" />
             </div>
+            {errors.email && <span className="text-[10px] text-danger-500 mt-1 block">{errors.email.message as string}</span>}
+          </div>
 
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Password</label>
-              <input
-                type="password"
-                {...regLogin("password")}
-                className="w-full bg-bg-dark border border-border focus:border-brand-500 rounded-lg px-4 py-2.5 text-xs text-foreground focus:outline-none"
-                placeholder="Enter password"
-              />
-              {loginErrors.password && <span className="text-[10px] text-danger-500 mt-1 block">{loginErrors.password.message as string}</span>}
-            </div>
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Password</label>
+            <input
+              type="password"
+              {...register("password")}
+              className="w-full bg-bg-dark border border-border focus:border-brand-500 rounded-lg px-4 py-2.5 text-xs text-foreground focus:outline-none"
+              placeholder="Min 6 characters"
+            />
+            {errors.password && <span className="text-[10px] text-danger-500 mt-1 block">{errors.password.message as string}</span>}
+          </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full mt-6 py-2.5 px-4 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:bg-brand-600/50 text-white text-xs font-bold transition-all flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <span>Unlock Dashboard</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </>
-              )}
-            </button>
-          </form>
-        ) : (
-          /* Signup Form */
-          <form onSubmit={handleSignupSubmit(onSignup)} className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Full Name</label>
-              <input
-                type="text"
-                {...regSignup("name")}
-                className="w-full bg-bg-dark border border-border focus:border-brand-500 rounded-lg px-4 py-2.5 text-xs text-foreground focus:outline-none"
-                placeholder="Enter your name"
-              />
-              {signupErrors.name && <span className="text-[10px] text-danger-500 mt-1 block">{signupErrors.name.message as string}</span>}
-            </div>
+          <button
+            type="submit"
+            disabled={loading || googleLoading}
+            className="w-full py-2.5 px-4 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:bg-brand-600/50 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md"
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <span>Continue with Email</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </>
+            )}
+          </button>
+        </form>
 
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Email Address</label>
-              <input
-                type="email"
-                {...regSignup("email")}
-                className="w-full bg-bg-dark border border-border focus:border-brand-500 rounded-lg px-4 py-2.5 text-xs text-foreground focus:outline-none"
-                placeholder="you@example.com"
-              />
-              {signupErrors.email && <span className="text-[10px] text-danger-500 mt-1 block">{signupErrors.email.message as string}</span>}
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Password</label>
-              <input
-                type="password"
-                {...regSignup("password")}
-                className="w-full bg-bg-dark border border-border focus:border-brand-500 rounded-lg px-4 py-2.5 text-xs text-foreground focus:outline-none"
-                placeholder="Create password"
-              />
-              {signupErrors.password && <span className="text-[10px] text-danger-500 mt-1 block">{signupErrors.password.message as string}</span>}
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full mt-6 py-2.5 px-4 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:bg-brand-600/50 text-white text-xs font-bold transition-all flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <span>Create Account & Start</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </>
-              )}
-            </button>
-          </form>
-        )}
+        <p className="text-[10px] text-gray-500 text-center leading-relaxed">
+          Entering an email address registers a new secure account automatically if it does not exist.
+        </p>
       </div>
     </div>
   );

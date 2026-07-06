@@ -254,3 +254,70 @@ export function useOnboardUser() {
     }
   });
 }
+
+// 22. Unified login or signup mutation
+export function useLoginOrSignup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (credentials: { email: string; password: string }) => apiFetch("/auth/login-or-signup", {
+      method: "POST",
+      body: JSON.stringify(credentials),
+    }),
+    onSuccess: (data) => {
+      // Set local tokens and hydrate
+      if (typeof window !== "undefined") {
+        localStorage.setItem("token", data.access_token);
+        localStorage.setItem("refreshToken", data.refresh_token);
+      }
+      queryClient.invalidateQueries({ queryKey: ["user"] });
+    }
+  });
+}
+
+// 23. Google auth login mutation
+export function useGoogleLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (idToken: string) => apiFetch("/auth/google", {
+      method: "POST",
+      body: JSON.stringify({ id_token: idToken }),
+    }),
+    onSuccess: (data) => {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("token", data.access_token);
+        localStorage.setItem("refreshToken", data.refresh_token);
+      }
+      queryClient.invalidateQueries({ queryKey: ["user"] });
+    }
+  });
+}
+
+// 24. Profile update mutation
+export function useProfileUpdate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (profile: {
+      name?: string;
+      course?: string;
+      daily_time?: string;
+      onboarded?: boolean;
+      exam_date?: string;
+      weak_subjects?: string[];
+      strong_subjects?: string[];
+      knowledge_level?: string;
+    }) => apiFetch("/auth/profile-update", {
+      method: "POST",
+      body: JSON.stringify(profile),
+    }),
+    onSuccess: (data) => {
+      const setAuth = useAuthStore.getState().setAuth;
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+      const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refreshToken") : "";
+      if (token && refreshToken) {
+        setAuth(token, refreshToken, data);
+      }
+      queryClient.invalidateQueries({ queryKey: ["user"] });
+    }
+  });
+}
+
