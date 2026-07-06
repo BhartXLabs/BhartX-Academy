@@ -235,23 +235,32 @@ def google_login(request: Request, google_in: GoogleAuthRequest, response: Respo
         name = idinfo.get("name", email.split("@")[0])
         avatar = idinfo.get("picture")
         sub = idinfo.get("sub")
-    except Exception:
-        # Fallback to decode unverified claims for local mocks / dev sessions
-        try:
-            claims = jwt.get_unverified_claims(google_in.id_token)
-            email = claims.get("email")
-            name = claims.get("name", email.split("@")[0] if email else "Google Student")
-            avatar = claims.get("picture")
-            sub = claims.get("sub")
-        except Exception:
-            pass
+    except Exception as e:
+        # Fallback to decode unverified claims ONLY for local mocks during development
+        if settings.ENV == "development":
+            try:
+                claims = jwt.get_unverified_claims(google_in.id_token)
+                email = claims.get("email")
+                name = claims.get("name", email.split("@")[0] if email else "Google Student")
+                avatar = claims.get("picture")
+                sub = claims.get("sub")
+            except Exception:
+                pass
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, 
+                detail=f"Google token signature verification failed: {e}"
+            )
 
-    # If token parsing fails completely, load default mock profile
+    # If token parsing fails completely, load default mock profile in dev, otherwise raise error
     if not email:
-        email = "google_student@bhartx.com"
-        name = "Google Student"
-        avatar = "https://lh3.googleusercontent.com/a/default-user"
-        sub = "mock-google-id-12345"
+        if settings.ENV == "development":
+            email = "google_student@bhartx.com"
+            name = "Google Student"
+            avatar = "https://lh3.googleusercontent.com/a/default-user"
+            sub = "mock-google-id-12345"
+        else:
+            raise HTTPException(status_code=400, detail="Invalid Google token claims")
 
     user = user_repo.get_by_email(db, email=email)
     
