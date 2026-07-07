@@ -37,10 +37,13 @@ export async function apiFetch(path: string, options: RequestOptions = {}) {
         // New cookies are set by the server; retry the original request
         response = await fetch(url, fetchOptions);
       } else {
-        // Refresh failed — clear client state and redirect to login
+        // Refresh failed — clear client state and redirect to login if on protected page
         useAuthStore.getState().clearAuth();
-        if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-          window.location.href = "/login";
+        if (typeof window !== "undefined") {
+          const path = window.location.pathname;
+          if (path !== "/login" && path !== "/") {
+            window.location.href = "/login";
+          }
         }
       }
     }
