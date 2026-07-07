@@ -1,13 +1,17 @@
 @import "tailwindcss";
 
 @theme {
-  /* Custom theme colors */
-  --color-brand-50: #f5f3ff;
-  --color-brand-100: #ede9fe;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
+  /* Custom EdTech & Technology Color System */
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-500: #6366f1; /* Neon Indigo */
+  --color-brand-600: #4f46e5; /* Tech Blue-Purple */
   --color-brand-700: #4338ca;
-  --color-brand-glow: rgba(99, 102, 241, 0.15);
+  --color-brand-glow: rgba(99, 102, 241, 0.25);
+  
+  --color-cyber-cyan: #06b6d4;   /* Socratic/AI doubt highlighting */
+  --color-cyber-purple: #a855f7; /* Revision/Streak achievements */
+  --color-cyber-orange: #f97316; /* Locked-in revision cards */
   
   --color-success-500: #10b981;
   --color-success-600: #059669;
@@ -15,44 +19,97 @@
   --color-danger-500: #ef4444;
   --color-danger-600: #dc2626;
 
-  --color-card-dark: #111827;
-  --color-bg-dark: #0b0f19;
+  --color-card-dark: #0f172a; /* Deep Navy Slate */
+  --color-bg-dark: #070a13;   /* Premium Midnight Space */
+  
+  /* Custom High-Tech Animations */
+  --animate-float: float 4s ease-in-out infinite;
+  --animate-pulse-glow: pulse-glow 2s infinite alternate;
+  --animate-border-beam: border-beam 4s linear infinite;
+  --animate-shimmer: shimmer 2s infinite linear;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 5px rgba(99, 102, 241, 0.3), 0 0 10px rgba(99, 102, 241, 0.1); }
+  100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.6), 0 0 30px rgba(99, 102, 241, 0.3); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --border: #e2e8f0;
-  --accent: #4f46e5;
-  --accent-foreground: #ffffff;
-}
-
-.dark {
-  --background: #0b0f19;
+  --background: #070a13;
   --foreground: #f8fafc;
-  --card: #111827;
-  --border: #1f2937;
+  --card: #0f172a;
+  --border: #1e293b;
   --accent: #6366f1;
   --accent-foreground: #ffffff;
 }
 
+/* Default is Dark Mode for the premium look */
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   min-height: 100vh;
   margin: 0;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
   
-  /* PWA/Mobile optimizations for native feel */
-  overscroll-behavior-y: none; /* Prevents pull-to-refresh bounce on mobile browsers */
-  -webkit-tap-highlight-color: transparent; /* Removes blue/grey highlight rectangle on tap */
-  -webkit-touch-callout: none; /* Disables callout menu on long-press */
-  -webkit-overflow-scrolling: touch; /* Momentum scroll for iOS */
+  /* PWA/Mobile native-feel enhancements */
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Make interactive elements unselectable to feel like native buttons */
+/* Premium Tech Grid Background */
+.tech-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
+
+/* Glassmorphism & High-tech Glow panels */
+.glass-card {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.glass-card:hover {
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 0 25px rgba(99, 102, 241, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Glowing text highlights */
+.glow-text-indigo {
+  text-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+}
+.glow-text-cyan {
+  text-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+}
+.glow-text-purple {
+  text-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+}
+
+/* Shimmer Loading placeholders */
+.shimmer-loading {
+  background: linear-gradient(90deg, #0f172a 25%, #1e293b 50%, #0f172a 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+/* Native button feels */
 button, a, nav, [role="button"] {
   user-select: none;
   -webkit-user-select: none;
@@ -67,16 +124,29 @@ button, a, nav, [role="button"] {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: #1e293b;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
+  background: #334155;
 }
 
-/* Glassmorphism utility */
-.glass-panel {
-  background: rgba(17, 24, 39, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* Cyberpunk glow badges */
+.badge-cyan {
+  background: rgba(6, 182, 212, 0.08);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+  color: #06b6d4;
 }
+
+.badge-purple {
+  background: rgba(168, 85, 247, 0.08);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  color: #a855f7;
+}
+
+.badge-brand {
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+}
+

@@ -1,167 +1,198 @@
-import os
-import urllib.request
+"""
+AI Providers — Async HTTP with Retry + Fallback Chain
+Architecture:
+  Primary: Groq (fastest — LLaMA 3.3 70B)
+  Fallback: Gemini (reliable)
+  Last Resort: OfflineFAQProvider (always available)
+
+All providers are async-native using httpx.
+Timeout: 20s, Retry: 2 attempts per provider before falling back.
+"""
+import httpx
 import json
-from typing import Optional, Dict, Any
+import asyncio
+from typing import Optional, Dict, Any, List
+
+TIMEOUT = httpx.Timeout(20.0, connect=5.0)
+MAX_RETRIES = 2
+
 
 class BaseAIProvider:
-    def generate_text(self, system_prompt: str, user_prompt: str) -> str:
+    async def generate_text(self, system_prompt: str, user_prompt: str, history: Optional[List[dict]] = None) -> str:
         raise NotImplementedError
 
-class GeminiProvider(BaseAIProvider):
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.api_key}"
+    def _build_messages(self, system_prompt: str, user_prompt: str, history: Optional[List[dict]] = None) -> List[dict]:
+        """Build OpenAI-compatible messages list with optional conversation history."""
+        messages = [{"role": "system", "content": system_prompt}]
+        if history:
+            # Include last 6 messages max (3 turns) for token efficiency
+            messages.extend(history[-6:])
+        messages.append({"role": "user", "content": user_prompt})
+        return messages
 
-    def generate_text(self, system_prompt: str, user_prompt: str) -> str:
-        # Construct raw HTTP payload for Gemini API
-        payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {"text": f"{system_prompt}\n\nUser Question: {user_prompt}"}
-                    ]
-                }
-            ]
-        }
-        try:
-            req = urllib.request.Request(
-                self.url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=10) as response:
-                res_data = json.loads(response.read().decode("utf-8"))
-                return res_data["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception as e:
-            return f"Error contacting Gemini API: {str(e)}"
-
-class OpenAIProvider(BaseAIProvider):
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.url = "https://api.openai.com/v1/chat/completions"
-
-    def generate_text(self, system_prompt: str, user_prompt: str) -> str:
-        payload = {
-            "model": "gpt-4o-mini",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-        }
-        try:
-            req = urllib.request.Request(
-                self.url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {self.api_key}"
-                },
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=10) as response:
-                res_data = json.loads(response.read().decode("utf-8"))
-                return res_data["choices"][0]["message"]["content"]
-        except Exception as e:
-            return f"Error contacting OpenAI API: {str(e)}"
 
 class GroqProvider(BaseAIProvider):
+    """Primary provider — fastest, cheapest. LLaMA 3.3 70B via Groq."""
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.url = "https://api.groq.com/openai/v1/chat/completions"
+        self.model = "llama-3.3-70b-versatile"
 
-    def generate_text(self, system_prompt: str, user_prompt: str) -> str:
-        payload = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-        }
-        try:
-            req = urllib.request.Request(
-                self.url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {self.api_key}"
-                },
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=10) as response:
-                res_data = json.loads(response.read().decode("utf-8"))
-                return res_data["choices"][0]["message"]["content"]
-        except Exception as e:
-            return f"Error contacting Groq API: {str(e)}"
+    async def generate_text(self, system_prompt: str, user_prompt: str, history: Optional[List[dict]] = None) -> str:
+        messages = self._build_messages(system_prompt, user_prompt, history)
+        payload = {"model": self.model, "messages": messages, "max_tokens": 1024}
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}"}
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                    response = await client.post(self.url, json=payload, headers=headers)
+                    response.raise_for_status()
+                    return response.json()["choices"][0]["message"]["content"]
+            except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
+                if attempt == MAX_RETRIES - 1:
+                    raise
+                await asyncio.sleep(1.0 * (attempt + 1))  # Exponential backoff
+        return "Error: Max retries exceeded"
+
+
+class GeminiProvider(BaseAIProvider):
+    """Fallback provider — Gemini 1.5 Flash."""
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+
+    async def generate_text(self, system_prompt: str, user_prompt: str, history: Optional[List[dict]] = None) -> str:
+        # Gemini uses a flat text format — concatenate history manually
+        context = ""
+        if history:
+            for msg in history[-6:]:
+                role = "Student" if msg["role"] == "user" else "Tutor"
+                context += f"{role}: {msg['content']}\n"
+
+        full_prompt = f"{system_prompt}\n\n{context}Student: {user_prompt}"
+        payload = {"contents": [{"parts": [{"text": full_prompt}]}]}
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                    response = await client.post(self.url, json=payload)
+                    response.raise_for_status()
+                    return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
+                if attempt == MAX_RETRIES - 1:
+                    raise
+                await asyncio.sleep(1.0 * (attempt + 1))
+        return "Error: Max retries exceeded"
+
+
+class OpenAIProvider(BaseAIProvider):
+    """Optional provider — GPT-4o mini."""
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.url = "https://api.openai.com/v1/chat/completions"
+        self.model = "gpt-4o-mini"
+
+    async def generate_text(self, system_prompt: str, user_prompt: str, history: Optional[List[dict]] = None) -> str:
+        messages = self._build_messages(system_prompt, user_prompt, history)
+        payload = {"model": self.model, "messages": messages, "max_tokens": 1024}
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}"}
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                    response = await client.post(self.url, json=payload, headers=headers)
+                    response.raise_for_status()
+                    return response.json()["choices"][0]["message"]["content"]
+            except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
+                if attempt == MAX_RETRIES - 1:
+                    raise
+                await asyncio.sleep(1.0 * (attempt + 1))
+        return "Error: Max retries exceeded"
+
 
 class OfflineFAQProvider(BaseAIProvider):
+    """Last-resort offline fallback — always available, zero latency."""
     def __init__(self):
-        # Seeded curriculum topics matching for Socratic answers
         self.kb: Dict[str, Dict[str, str]] = {
             "list": {
-                "explanation": "A Python List is an ordered, mutable collection of items. Think of it as a storage shelf where you can place multiple data items inside a single variable.",
-                "analogy": "Imagine a shopping list printed on a strip of paper. You can read items from first to last, change an item (cross it out and write eggs instead of milk), or append new items at the end.",
-                "example": "```python\n# Creating and modifying a list\nshopping = ['books', 'pens']\nshopping.append('notebook')\nshopping[0] = 'textbook'\nprint(shopping)  # Outputs: ['textbook', 'pens', 'notebook']\n```",
-                "try_yourself": "Create a list containing five different colors. Write a line of code to swap the second and fourth color, then print the list.",
-                "practice_question": "Explain the difference in memory utilization and speed when accessing a Python List vs a Python Tuple."
+                "explanation": "A Python List is an ordered, mutable collection. Think of it as a storage shelf with numbered slots.",
+                "analogy": "Imagine a shopping list on paper — you can read, update, or add items at any position.",
+                "example": "```python\nshopping = ['books', 'pens']\nshopping.append('notebook')\nprint(shopping)  # ['books', 'pens', 'notebook']\n```",
+                "try_yourself": "Create a list of 5 colors. Swap the 2nd and 4th color, then print it.",
+                "practice_question": "What is the memory difference between a List and a Tuple in Python?"
             },
             "loop": {
-                "explanation": "Loops are control flow structures that repeat a block of statements as long as a condition is satisfied (while loop) or iterate over items of a sequence (for loop).",
-                "analogy": "Imagine a clock mechanism. The second hand completes a full loop 60 times before the minute hand increments by one.",
-                "example": "```python\n# Iterating with a loop\nfor i in range(1, 4):\n    print(f'Iteration: {i}')\n```",
-                "try_yourself": "Write a `while` loop that prints integers starting from 10 down to 1 (countdown) and then prints 'Launch!'",
-                "practice_question": "What is an infinite loop? Provide a scenario where an infinite loop is explicitly intended (e.g. server listening ports)."
+                "explanation": "Loops repeat a block of code while a condition holds (while) or over a sequence (for).",
+                "analogy": "A clock's second hand completes a full loop 60 times before the minute hand moves once.",
+                "example": "```python\nfor i in range(1, 4):\n    print(f'Step: {i}')\n```",
+                "try_yourself": "Write a while loop that counts down from 10 to 1 then prints 'Go!'",
+                "practice_question": "When would you use a for loop vs a while loop? Give one example of each."
             },
             "function": {
-                "explanation": "A Python Function is a modular, reusable block of code that is executed only when it is explicitly invoked. It can accept input arguments and return output values.",
-                "analogy": "Think of a microwave oven. You put raw food inside (input parameters), select a settings timer, and it outputs a warm meal (returned value). You do not need to rebuild the microwave each time you cook.",
-                "example": "```python\n# Defining and calling a function\ndef greet_student(name):\n    return f'Welcome to BhartX, {name}!'\n\nmessage = greet_student('Shubh')\nprint(message)  # Outputs: Welcome to BhartX, Shubh!\n```",
-                "try_yourself": "Create a function called `calculate_area` that accepts a rectangle's width and height. It should return the area value.",
-                "practice_question": "Explain the scopes of local variables declared inside a function versus global variables declared outside."
+                "explanation": "A function is a reusable block of code that runs only when called. It accepts parameters and can return values.",
+                "analogy": "A microwave: you put food in (input), press start, and get hot food (output) — without rebuilding it each time.",
+                "example": "```python\ndef greet(name):\n    return f'Welcome, {name}!'\n\nprint(greet('Shubh'))\n```",
+                "try_yourself": "Write a function `rectangle_area(width, height)` that returns the area.",
+                "practice_question": "Explain local vs global scope of variables in Python functions."
             },
             "database": {
-                "explanation": "A Database is a structured collection of data stored and organized electronically. In relational databases (RDBMS), data is stored in tables linked via keys.",
-                "analogy": "Imagine a giant spreadsheet workbook containing sheets for Students, Courses, and Enrollments. By linking student ID cells across sheets, we create relational data links.",
-                "example": "```sql\n-- Querying a database\nSELECT users.name, courses.title \nFROM enrollments\nJOIN users ON enrollments.user_id = users.id\nJOIN courses ON enrollments.course_id = courses.id;\n```",
-                "try_yourself": "Write a SQL query that retrieves all students registered in the 'A-Level' course whose registration date is after January 2026.",
-                "practice_question": "Define the four ACID parameters in database transaction management and explain why Atomicity is critical."
+                "explanation": "A Database stores structured data electronically. Relational databases link data across tables via keys.",
+                "analogy": "Multiple spreadsheet sheets — Students, Courses, Enrollments — linked by IDs.",
+                "example": "```sql\nSELECT u.name, c.title\nFROM enrollments e\nJOIN users u ON e.user_id = u.id\nJOIN courses c ON e.course_id = c.id;\n```",
+                "try_yourself": "Write SQL to fetch all students enrolled after Jan 2026.",
+                "practice_question": "Define the 4 ACID properties and why Atomicity matters in transactions."
             },
             "operating system": {
-                "explanation": "An Operating System (OS) is system software that manages computer hardware components, coordinates shared resources, and provides common services for application programs.",
-                "analogy": "Think of an OS as a traffic police coordinator at a busy intersection, managing intersections (CPU time) and lane queues (RAM allocation) so that drivers (software applications) do not crash.",
-                "example": "```text\nProcesses -> Scheduler (Round Robin) -> CPU core execution\n```",
-                "try_yourself": "Compare paging with segmentation in memory management. Draft a simple table contrasting their base principles.",
-                "practice_question": "What is a deadlock scenario in Operating Systems? Describe the four necessary conditions (Coffman conditions) for a deadlock to occur."
+                "explanation": "An OS manages hardware resources — CPU, memory, I/O — and provides services to application programs.",
+                "analogy": "A traffic cop at a busy junction: manages intersections (CPU time) and lanes (RAM) so cars (apps) don't crash.",
+                "example": "```text\nProcess Queue → Scheduler (Round Robin) → CPU Core\n```",
+                "try_yourself": "Compare Paging vs Segmentation in memory management in a 2-column table.",
+                "practice_question": "What is a deadlock? Name the 4 Coffman conditions required for it to occur."
             }
         }
-
-        # Catch-all generic fallback response
-        self.default_topic = {
-            "explanation": "This topic covers critical concepts of the NIELIT A-Level curriculum. Let's analyze it step-by-step using structural models.",
-            "analogy": "Think of this topic as a building block. You assemble smaller components to establish a stable structural setup.",
-            "example": "```python\n# Standard conceptual model\ndef conceptual_process(data):\n    # Process data and return outcomes\n    return data\n```",
-            "try_yourself": "Draft a short summary explaining what you understand about this topic's primary utility.",
-            "practice_question": "How does this topic relate to general computer networking or programming architectures?"
+        self.default = {
+            "explanation": "This is a key NIELIT A-Level concept. Let's break it down step by step.",
+            "analogy": "Think of this concept as a building block in a larger system.",
+            "example": "```python\n# Conceptual model\ndef process(data):\n    return data\n```",
+            "try_yourself": "Write a short paragraph explaining this concept in your own words.",
+            "practice_question": "How does this topic relate to other computer science concepts you've studied?"
         }
 
-    def generate_text(self, system_prompt: str, user_prompt: str) -> str:
-        # Match keywords in prompt string
+    async def generate_text(self, system_prompt: str, user_prompt: str, history: Optional[List[dict]] = None) -> str:
         q_lower = user_prompt.lower()
-        matched = self.default_topic
-        
+        matched = self.default
         for key in self.kb:
             if key in q_lower:
                 matched = self.kb[key]
                 break
 
-        # Socratic Tutor format response wrapper
-        response_json = {
+        return json.dumps({
             "role": "tutor",
             "answer": matched["explanation"],
             "explanation": matched["explanation"],
-            "analogy": f"Analogy: {matched['analogy']}",
+            "analogy": f"**Analogy:** {matched['analogy']}",
             "example": matched["example"],
             "try_yourself": matched["try_yourself"],
             "practice_question": matched["practice_question"]
-        }
-        return json.dumps(response_json)
+        })
+
+
+class AIProviderChain:
+    """
+    Fallback chain: Primary → Secondary → Offline
+    Tries each provider in order, falls back on any exception.
+    """
+    def __init__(self, primary: BaseAIProvider, secondary: BaseAIProvider, fallback: OfflineFAQProvider):
+        self.chain = [primary, secondary, fallback]
+        self.provider_names = ["Primary", "Secondary", "Offline"]
+
+    async def generate_text(self, system_prompt: str, user_prompt: str, history: Optional[List[dict]] = None) -> str:
+        for i, provider in enumerate(self.chain):
+            try:
+                result = await provider.generate_text(system_prompt, user_prompt, history)
+                if result and not result.startswith("Error"):
+                    return result
+            except Exception as e:
+                print(f"[AIProviderChain] {self.provider_names[i]} failed: {e}. Trying next.")
+        return "I'm having trouble connecting to the AI right now. Please try again in a moment."

@@ -5,9 +5,26 @@ from app.db.session import get_db
 from app.api.v1.endpoints.auth import get_current_user
 from app.repositories.journal import journal_repo
 from app.repositories.user import user_repo
-from app.schemas.journal import MistakeJournalResponse, MistakeResolveRequest
+from app.schemas.journal import MistakeJournalResponse, MistakeResolveRequest, MistakeCreateRequest
 
 router = APIRouter()
+
+@router.post("", response_model=MistakeJournalResponse)
+def log_mistake(mistake_in: MistakeCreateRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Directly log a mistake from video prompts, AI tests, or any non-quiz source."""
+    return journal_repo.log_mistake(
+        db,
+        user_id=current_user.id,
+        question_text=mistake_in.question_text,
+        options=mistake_in.options,
+        selected_option_index=mistake_in.selected_option_index,
+        correct_option_index=mistake_in.correct_option_index,
+        confidence_rating=mistake_in.confidence_rating,
+        explanation=mistake_in.explanation,
+        source_type=mistake_in.source_type,
+        source_id=mistake_in.source_id
+    )
+
 
 @router.get("", response_model=List[MistakeJournalResponse])
 def get_mistakes(resolved: bool = False, skip: int = 0, limit: int = 20, db: Session = Depends(get_db), current_user=Depends(get_current_user)):

@@ -44,6 +44,7 @@ class LessonBase(BaseModel):
 class LessonResponse(LessonBase):
     id: int
     chapter_id: int
+    subject_id: Optional[int] = None  # Populated at endpoint level via lesson.chapter.subject_id
     prompts: List[VideoPromptResponse] = []
     resources: List[ResourceResponse] = []
 

@@ -305,3 +305,28 @@ export function useProfileUpdate() {
   });
 }
 
+// ── Phase 2 Hooks ─────────────────────────────────────────────────────────────
+
+export function useMyAnalytics() {
+  return useQuery({
+    queryKey: ["my-analytics"],
+    queryFn: () => apiFetch("/analytics/me"),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useStudyPlan() {
+  return useQuery({
+    queryKey: ["study-plan"],
+    queryFn: () => apiFetch("/ai/study-plan"),
+    staleTime: 30 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useNewConversation() {
+  return useMutation({
+    mutationFn: () => apiFetch("/ai/doubt/new-session", { method: "POST" }),
+  });
+}

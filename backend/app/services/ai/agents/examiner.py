@@ -24,16 +24,15 @@ class ExaminerAgent:
             "{\"questions\": [{\"text\": \"Question here\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"correct_option_index\": 0, \"explanation\": \"Reason here\"}]}"
         )
 
-    def generate_quiz(self, topic: str, difficulty: str, count: int = 5) -> dict:
+    async def generate_quiz(self, topic: str, difficulty: str, count: int = 5) -> dict:
         prompt = (
             f"Generate a {difficulty}-difficulty quiz containing {count} multiple choice questions "
             f"about this topic: '{topic}'."
         )
         
         try:
-            raw = self.provider.generate_text(self.system_prompt, prompt)
+            raw = await self.provider.generate_text(self.system_prompt, prompt)
             cleaned = clean_json_response(raw)
-            # Check if it parses as valid JSON
             parsed = json.loads(cleaned)
             if "questions" in parsed:
                 return parsed

@@ -4,18 +4,20 @@ import React, { useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Navbar from "@/components/Navbar";
 import Sidebar from "@/components/Sidebar";
-import { useCourses, useSemesters } from "@/hooks/useApi";
+import { useCourses, useSemesters, useMyAnalytics } from "@/hooks/useApi";
 import { Loader2, ChevronRight, BookOpen, Clock } from "lucide-react";
 import Link from "next/link";
 
 export default function Courses() {
   const { data: courses = [], isLoading: coursesLoading } = useCourses();
-  // Fetch semesters for first course (A-Level, id: 1)
   const { data: semesters = [], isLoading: semestersLoading } = useSemesters(1);
+  const { data: analytics } = useMyAnalytics();
+
+  const progressMap = analytics?.learning?.subject_progress || {};
 
   return (
     <ProtectedRoute>
-      <div className="flex flex-col h-screen overflow-hidden bg-bg-dark">
+      <div className="flex flex-col h-screen overflow-hidden bg-bg-dark tech-grid">
         <Navbar />
 
         <div className="flex flex-1 overflow-hidden">
@@ -24,7 +26,7 @@ export default function Courses() {
           <main className="flex-1 overflow-y-auto p-6 space-y-6">
             <div>
               <span className="text-[10px] font-bold text-brand-500 tracking-wider uppercase">Course Catalog</span>
-              <h1 className="text-xl font-extrabold text-foreground mt-0.5">NIELIT A-Level Curriculum</h1>
+              <h1 className="text-xl font-extrabold text-foreground mt-0.5 glow-text-indigo">NIELIT A-Level Curriculum</h1>
               <p className="text-xs text-gray-500 mt-1">
                 Structured into 3 Semesters. Complete each module checkpoint to unlock subsequent subjects.
               </p>
@@ -47,13 +49,10 @@ export default function Courses() {
                     {/* Subjects Grid */}
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {sem.subjects.map((sub: any) => {
-                        // Static mock progress for visualization
-                        const isPython = sub.code === "A3-R5";
-                        const isIT = sub.code === "A1-R5";
-                        const progress = isPython ? 82 : isIT ? 35 : 0;
+                        const progress = parseFloat(progressMap[sub.id] || "0");
                         
                         return (
-                          <div key={sub.id} className="p-5 rounded-2xl border border-border bg-card-dark flex flex-col justify-between h-44 hover:border-brand-500/30 transition-all duration-300 group">
+                          <div key={sub.id} className="p-5 rounded-2xl border border-border bg-card-dark flex flex-col justify-between h-44 hover:border-brand-500/30 transition-all duration-300 group glass-card">
                             <div>
                               <div className="flex justify-between items-start">
                                 <span className="px-2 py-0.5 text-[9px] font-extrabold rounded bg-brand-glow text-brand-500 border border-brand-500/10 uppercase tracking-wider">

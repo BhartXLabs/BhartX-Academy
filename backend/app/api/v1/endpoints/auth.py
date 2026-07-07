@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.repositories.user import user_repo
 from app.core.security import create_access_token, create_refresh_token, verify_password, decode_token
+from app.core.config import settings  # Required for GOOGLE_CLIENT_ID + ENV checks in google_login()
 from app.schemas.auth import UserCreate, UserLogin, Token, UserResponse, TokenRefreshRequest, OnboardingRequest, GoogleAuthRequest, ProfileUpdateRequest
 from app.models.all_models import User, UserSession
 from jose import jwt
@@ -358,24 +359,27 @@ def profile_update(profile_in: ProfileUpdateRequest, db: Session = Depends(get_d
     return current_user
 
 @router.post("/logout")
-def logout(response: Response, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def logout(request: Request, response: Response, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Clear HttpOnly auth cookies server-side to fully log out the user."""
-    # Delete the refresh session from DB so the token is fully invalidated
-    token = None
-    # We don't have the raw token here, but clearing cookies is enough for security
+    # Revoke refresh session from DB so the token is fully invalidated server-side
+    refresh_token = request.cookies.get("refresh_token")
+    if refresh_token:
+        user_repo.revoke_refresh_session(db, refresh_token)
+
+    # delete_cookie MUST use IDENTICAL attributes as set_cookie:
+    # secure=True, samesite="none" — otherwise the browser treats it as a different cookie
     response.delete_cookie(
         key="access_token",
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=True,
+        samesite="none",
         path="/"
     )
     response.delete_cookie(
         key="refresh_token",
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=True,
+        samesite="none",
         path="/"
     )
     return {"message": "Logged out successfully"}
-

@@ -27,31 +27,76 @@ export default function MockExamLab() {
   const [scoreOutcome, setScoreOutcome] = useState<any | null>(null);
   const timerRef = useRef<any>(null);
 
-  // Initialize Timer
+  // Refs to hold latest state for use inside setInterval (avoids stale closures)
+  const answersRef = React.useRef(answers);
+  const mockRef = React.useRef(mock);
+  const examSubmittedRef = React.useRef(examSubmitted);
+
+  // Keep refs in sync with state on every render
+  React.useEffect(() => { answersRef.current = answers; }, [answers]);
+  React.useEffect(() => { mockRef.current = mock; }, [mock]);
+  React.useEffect(() => { examSubmittedRef.current = examSubmitted; }, [examSubmitted]);
+
+  // Initialize Timer once when mock data arrives
   useEffect(() => {
     if (mock && timeLeft === null) {
       setTimeLeft(mock.duration_minutes * 60);
     }
   }, [mock]);
 
-  // Timer Countdown loop
+  // Single interval — created once when timeLeft is initialized, never re-created
   useEffect(() => {
-    if (timeLeft !== null && timeLeft > 0 && !examSubmitted) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev !== null && prev <= 1) {
-            clearInterval(timerRef.current);
-            handleSubmitExam(); // Auto submit on expiry
-            return 0;
+    if (timeLeft === null) return; // Wait for mock data
+
+    // Clear any existing interval before starting new one
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timerRef.current);
+          // Use refs to get latest state — avoids stale closure problem
+          if (!examSubmittedRef.current) {
+            handleSubmitExamWithRefs();
           }
-          return prev !== null ? prev - 1 : null;
-        });
-      }, 1000);
-    }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [timeLeft, examSubmitted]);
+  // Only run once when timer is first initialized — NOT on every timeLeft change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft === null ? null : "initialized"]);
+
+
+  // Ref-based submit — safe to call from inside setInterval (no stale closures)
+  const handleSubmitExamWithRefs = () => {
+    const currentMock = mockRef.current;
+    const currentAnswers = answersRef.current;
+    if (!currentMock || !currentMock.questions) return;
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    const formattedAnswers = currentMock.questions.map((q: any) => ({
+      question_id: q.id,
+      selected_option_index: currentAnswers[q.id]?.choice ?? -1,
+      confidence_rating: currentAnswers[q.id]?.confidence ?? "medium"
+    }));
+
+    submitMockMutation.mutate({
+      mockId: mckId,
+      answers: formattedAnswers,
+      review_palette: reviewStatus
+    }, {
+      onSuccess: (data) => {
+        setScoreOutcome(data);
+        setExamSubmitted(true);
+      }
+    });
+  };
 
   const handleSelectOption = (questionId: number, idx: number) => {
     setAnswers((prev) => ({

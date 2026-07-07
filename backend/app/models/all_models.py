@@ -268,6 +268,7 @@ class Quiz(Base):
     chapter_id = Column(Integer, ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+    status = Column(String, default="published")  # published, draft, archived — required by AI test generation
 
     chapter = relationship("Chapter", back_populates="quizzes")
     questions = relationship("QuizQuestion", back_populates="quiz", cascade="all, delete-orphan")
@@ -282,6 +283,7 @@ class QuizQuestion(Base):
     text = Column(Text, nullable=False)
     options = Column(JSON, nullable=False)  # JSON array of strings
     correct_option_index = Column(Integer, nullable=False)
+    order = Column(Integer, default=0)  # Question order within quiz — required by AI test generation
 
     quiz = relationship("Quiz", back_populates="questions")
 

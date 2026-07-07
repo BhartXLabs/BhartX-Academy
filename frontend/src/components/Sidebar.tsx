@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -9,33 +9,50 @@ import {
   Award,
   BookOpenCheck,
   Flame,
-  HelpCircle,
   User,
   Shield,
   Sparkles,
-  ClipboardList
+  ClipboardList,
+  Calendar,
+  X,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 
-export default function Sidebar() {
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuthStore();
+  const overlayRef = useRef<HTMLDivElement>(null);
 
   const links = [
     { name: "Dashboard", href: "/dashboard", icon: Compass },
+    { name: "Daily AI Planner", href: "/study-plan", icon: Calendar },
     { name: "Subjects Syllabus", href: "/courses", icon: BookOpen },
     { name: "Mistake Journal", href: "/journal", icon: ClipboardList },
     { name: "Exam Mock Tests", href: "/mocks", icon: BookOpenCheck },
     { name: "Previous Papers", href: "/pyqs", icon: Award },
     { name: "Socratic AI Doubts", href: "/ai-doubt", icon: Sparkles },
+    { name: "AI Custom Test", href: "/ai-test", icon: Flame },
     { name: "Student Profile", href: "/profile", icon: User },
   ];
 
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
-  return (
-    <aside className="w-64 border-r border-border bg-card-dark h-[calc(100vh-57px)] flex flex-col justify-between py-4 select-none shrink-0">
-      <div className="space-y-1.5 px-3">
+  // Close on route change (mobile)
+  useEffect(() => {
+    if (mobileOpen && onMobileClose) {
+      onMobileClose();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  const NavLinks = () => (
+    <>
+      <div className="space-y-1.5 px-3 flex-1">
         {links.map((link) => {
           const isActive = pathname === link.href || pathname.startsWith(link.href + "/");
           const Icon = link.icon;
@@ -43,24 +60,25 @@ export default function Sidebar() {
             <Link
               key={link.href}
               href={link.href}
+              onClick={onMobileClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
                 isActive
                   ? "bg-brand-600 text-white shadow-lg shadow-brand-600/10"
                   : "text-gray-400 hover:text-foreground hover:bg-bg-dark"
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-gray-400'}`} />
+              <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-white" : "text-gray-400"}`} />
               <span>{link.name}</span>
             </Link>
           );
         })}
       </div>
 
-      {/* Admin Panel button if role matches */}
       {isAdmin && (
-        <div className="px-3 border-t border-border/40 pt-4">
+        <div className="px-3 border-t border-border/40 pt-4 mt-2">
           <Link
             href="/admin"
+            onClick={onMobileClose}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
               pathname === "/admin"
                 ? "bg-purple-600 text-white shadow-lg"
@@ -72,6 +90,59 @@ export default function Sidebar() {
           </Link>
         </div>
       )}
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* ── Desktop Sidebar ─────────────────────────────────────────── */}
+      <aside className="hidden md:flex w-64 border-r border-border bg-card-dark h-[calc(100vh-57px)] flex-col justify-between py-4 select-none shrink-0">
+        <NavLinks />
+      </aside>
+
+      {/* ── Mobile Drawer Overlay ────────────────────────────────────── */}
+      {mobileOpen && (
+        <div
+          ref={overlayRef}
+          className="fixed inset-0 z-50 md:hidden"
+          onClick={onMobileClose}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+          {/* Drawer Panel */}
+          <aside
+            className="absolute left-0 top-0 h-full w-72 bg-card-dark border-r border-border flex flex-col py-4 select-none shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              animation: "slideInLeft 0.25s ease-out"
+            }}
+          >
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between px-4 pb-4 border-b border-border mb-2">
+              <span className="text-sm font-bold bg-gradient-to-r from-brand-500 to-indigo-400 bg-clip-text text-transparent">
+                BhartX Academy
+              </span>
+              <button
+                onClick={onMobileClose}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-foreground hover:bg-bg-dark transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <NavLinks />
+          </aside>
+        </div>
+      )}
+
+      {/* CSS Animation for drawer slide-in */}
+      <style jsx global>{`
+        @keyframes slideInLeft {
+          from { transform: translateX(-100%); opacity: 0; }
+          to   { transform: translateX(0);    opacity: 1; }
+        }
+      `}</style>
+    </>
   );
 }

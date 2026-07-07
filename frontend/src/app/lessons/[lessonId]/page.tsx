@@ -98,18 +98,21 @@ export default function LessonWorkspace() {
     setPromptCorrect(isCorrect);
     setPromptChecked(true);
     
-    // Log in Mistake Journal if incorrect
+    // Log in Mistake Journal directly via dedicated endpoint — avoids hardcoded quiz hack
     if (!isCorrect) {
-      apiFetch("/quizzes/1/submit", {  // Mock endpoint to register mid-video error logger
+      apiFetch("/journal", {
         method: "POST",
         body: JSON.stringify({
-          answers: [{
-            question_id: activePrompt.id,
-            selected_option_index: selectedPromptAns,
-            confidence_rating: "medium"
-          }]
+          question_text: activePrompt.question_text,
+          options: activePrompt.options,
+          selected_option_index: selectedPromptAns,
+          correct_option_index: activePrompt.correct_option_index,
+          confidence_rating: "medium",
+          explanation: `Correct answer is '${activePrompt.options[activePrompt.correct_option_index]}'.`,
+          source_type: "video_prompt",
+          source_id: lesId
         })
-      }).catch(err => console.error(err));
+      }).catch(err => console.error("Mistake journal log error:", err));
     }
   };
 
@@ -365,7 +368,7 @@ export default function LessonWorkspace() {
                           <CheckCircle className="w-10 h-10 text-emerald-500" />
                           <p className="font-bold text-foreground">Feynman Recall Logged!</p>
                           <p className="text-gray-500 max-w-sm">Spaced revisions have been scheduled for this topic. Complete chapter checks to unlock next segments.</p>
-                          <Link href={`/courses/${lesson.chapter_id}`} className="mt-4 px-4 py-2 bg-brand-600 text-white rounded-xl font-bold">
+                          <Link href={`/courses/${lesson.subject_id || lesson.chapter_id}`} className="mt-4 px-4 py-2 bg-brand-600 text-white rounded-xl font-bold">
                             Return to Syllabus
                           </Link>
                         </div>

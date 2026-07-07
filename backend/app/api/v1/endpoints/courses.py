@@ -31,11 +31,16 @@ def get_lesson(lesson_id: int, db: Session = Depends(get_db), current_user=Depen
     unlocked = progress_repo.is_lesson_unlocked(db, current_user.id, lesson_id)
     if not unlocked:
          raise HTTPException(status_code=403, detail="Lesson is locked. Master previous topics and complete chapter quizzes to unlock.")
-         
+
     lesson = course_repo.get_lesson(db, lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found")
+
+    # Attach subject_id so frontend can build correct return-to-syllabus link
+    # lesson.chapter is eagerly loaded in course_repo.get_lesson via joinedload
+    lesson.subject_id = lesson.chapter.subject_id if lesson.chapter else None
     return lesson
+
 
 @router.get("/lessons/{lesson_id}/unlock-status")
 def get_unlock_status(lesson_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):

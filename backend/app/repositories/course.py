@@ -41,6 +41,7 @@ class CourseRepository(BaseRepository[Course]):
 
     def get_lesson(self, db: Session, lesson_id: int) -> Optional[Lesson]:
         return db.query(Lesson).options(
+            joinedload(Lesson.chapter),   # Needed to resolve lesson.chapter.subject_id
             joinedload(Lesson.prompts),
             joinedload(Lesson.resources)
         ).filter(Lesson.id == lesson_id).first()
