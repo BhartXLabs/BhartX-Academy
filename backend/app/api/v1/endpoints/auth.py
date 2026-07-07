@@ -84,8 +84,10 @@ def login(request: Request, user_in: UserLogin, response: Response, db: Session 
     # Tokens are in HttpOnly cookies only — do not expose in response body
     return {"token_type": "bearer", "message": "Login successful"}
 
+from fastapi.security import OAuth2PasswordRequestForm
+
 @router.post("/login-oauth")
-def login_oauth(form_data: Depends(OAuth2PasswordBearer) = Depends(), db: Session = Depends(get_db)):
+def login_oauth(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     # Needed for FastAPI swagger login page integration
     # For now we will hook standard form login if needed, or raise 400 for OAuth standard
     raise HTTPException(status_code=400, detail="Use /api/v1/auth/login JSON endpoint")
