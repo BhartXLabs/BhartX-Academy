@@ -46,16 +46,24 @@ function LoginContent() {
     }
   }, [isAuthenticated, router]);
 
-  // Redirect to landing page if user refreshes the login page
+  // Redirect to landing page only if user explicitly refreshes the login page
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const isReload = window.performance && 
-        window.performance.getEntriesByType("navigation").some(
-          (nav: any) => nav.type === "reload"
-        );
-      if (isReload) {
+      // Check if this mount was caused by a reload flag in sessionStorage
+      const wasReloaded = sessionStorage.getItem("login_reloaded");
+      if (wasReloaded === "true") {
+        sessionStorage.removeItem("login_reloaded");
         router.push("/");
       }
+
+      // Listen for page unload/refresh to flag reload state
+      const handleBeforeUnload = () => {
+        if (window.location.pathname === "/login") {
+          sessionStorage.setItem("login_reloaded", "true");
+        }
+      };
+      window.addEventListener("beforeunload", handleBeforeUnload);
+      return () => window.removeEventListener("beforeunload", handleBeforeUnload);
     }
   }, [router]);
 
