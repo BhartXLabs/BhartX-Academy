@@ -12,19 +12,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+RUN chmod +x start.sh
 
 EXPOSE 8000
 
-# Production: gunicorn manages multiple uvicorn worker processes
-# --workers 4 handles concurrent requests (adjust per Render plan RAM)
-# --timeout 120 gives AI endpoints enough time to respond
-# --graceful-timeout 30 allows in-flight requests to finish on shutdown
-CMD ["gunicorn", "main:app", \
-     "-k", "uvicorn.workers.UvicornWorker", \
-     "--workers", "4", \
-     "--bind", "0.0.0.0:8000", \
-     "--timeout", "120", \
-     "--graceful-timeout", "30", \
-     "--log-level", "info", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-"]
+CMD ["sh", "start.sh"]
+
