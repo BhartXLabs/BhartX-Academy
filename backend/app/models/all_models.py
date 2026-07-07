@@ -387,5 +387,6 @@ class PYQ(Base):
     title = Column(String, nullable=False)
     pdf_url = Column(String, nullable=False)
     video_solution_url = Column(String, nullable=True)
+    parsed_questions = Column(JSON, nullable=True)  # JSON structure of parsed questions for AI consumption
 
     subject = relationship("Subject", back_populates="pyqs")
