@@ -180,12 +180,12 @@ class OfflineFAQProvider(BaseAIProvider):
 
 class AIProviderChain:
     """
-    Fallback chain: Primary → Secondary → Offline
+    Fallback chain: Dynamic list of providers.
     Tries each provider in order, falls back on any exception.
     """
-    def __init__(self, primary: BaseAIProvider, secondary: BaseAIProvider, fallback: OfflineFAQProvider):
-        self.chain = [primary, secondary, fallback]
-        self.provider_names = ["Primary", "Secondary", "Offline"]
+    def __init__(self, chain: List[BaseAIProvider], names: List[str]):
+        self.chain = chain
+        self.provider_names = names
 
     async def generate_text(self, system_prompt: str, user_prompt: str, history: Optional[List[dict]] = None) -> str:
         for i, provider in enumerate(self.chain):
@@ -196,3 +196,4 @@ class AIProviderChain:
             except Exception as e:
                 print(f"[AIProviderChain] {self.provider_names[i]} failed: {e}. Trying next.")
         return "I'm having trouble connecting to the AI right now. Please try again in a moment."
+
