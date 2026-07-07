@@ -12,9 +12,10 @@ from app.core.ratelimit import limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 
-# Initialize database schemas (auto-creates tables on first run)
-# NOTE: For schema changes in production, use Alembic migrations instead
-all_models.Base.metadata.create_all(bind=engine)
+# Initialize database schemas (auto-creates tables in local development only)
+# NOTE: In production, database schemas are managed strictly via Alembic migrations.
+if settings.ENV != "production":
+    all_models.Base.metadata.create_all(bind=engine)
 
 # ── Parse allowed origins from comma-separated env var ──────────────────────
 allowed_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]

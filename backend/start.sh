@@ -1,8 +1,8 @@
 #!/bin/sh
 # start.sh — Asynchronous DB migration & seeding on container boot (Render Free Tier compatible)
 
-echo "[Start Script] Running database migrations..."
-alembic upgrade head
+echo "[Start Script] Verifying database schema and migrations..."
+python check_stamp.py
 
 echo "[Start Script] Running curriculum seeding..."
 python seed/seed_data.py

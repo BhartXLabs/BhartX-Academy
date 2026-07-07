@@ -1,5 +1,14 @@
 import type { NextConfig } from "next";
 
+const getApiOrigin = () => {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  try {
+    return new URL(apiUrl).origin;
+  } catch {
+    return apiUrl;
+  }
+};
+
 const nextConfig: NextConfig = {
   // ── Image Optimization ─────────────────────────────────────────────────────
   // Allow external image domains (Google avatars, BhartX CDN)
@@ -52,7 +61,7 @@ const nextConfig: NextConfig = {
               // Iframes: YouTube no-cookie embeds
               "frame-src https://www.youtube-nocookie.com https://accounts.google.com",
               // API connections: self + backend Render URL + Google APIs
-              `connect-src 'self' ${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"} https://accounts.google.com https://oauth2.googleapis.com`,
+              `connect-src 'self' ${getApiOrigin()} https://accounts.google.com https://oauth2.googleapis.com`,
             ].join("; "),
           },
         ],
