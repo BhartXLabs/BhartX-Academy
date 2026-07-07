@@ -41,7 +41,7 @@ export default function Navbar() {
       console.error("Backend logout call failed: ", err);
     } finally {
       clearAuth();
-      window.location.href = "/login";
+      window.location.href = "/";
     }
   };
 

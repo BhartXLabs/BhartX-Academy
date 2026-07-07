@@ -46,6 +46,19 @@ function LoginContent() {
     }
   }, [isAuthenticated, router]);
 
+  // Redirect to landing page if user refreshes the login page
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isReload = window.performance && 
+        window.performance.getEntriesByType("navigation").some(
+          (nav: any) => nav.type === "reload"
+        );
+      if (isReload) {
+        router.push("/");
+      }
+    }
+  }, [router]);
+
   // Load Google Identity Services script and initialize
   useEffect(() => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
