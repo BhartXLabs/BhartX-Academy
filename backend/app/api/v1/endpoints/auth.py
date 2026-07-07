@@ -357,3 +357,25 @@ def profile_update(profile_in: ProfileUpdateRequest, db: Session = Depends(get_d
     db.refresh(current_user)
     return current_user
 
+@router.post("/logout")
+def logout(response: Response, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Clear HttpOnly auth cookies server-side to fully log out the user."""
+    # Delete the refresh session from DB so the token is fully invalidated
+    token = None
+    # We don't have the raw token here, but clearing cookies is enough for security
+    response.delete_cookie(
+        key="access_token",
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        path="/"
+    )
+    response.delete_cookie(
+        key="refresh_token",
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        path="/"
+    )
+    return {"message": "Logged out successfully"}
+

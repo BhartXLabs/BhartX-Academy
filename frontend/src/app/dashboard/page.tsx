@@ -18,6 +18,50 @@ function DashboardContent() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
+  // PWA Install states
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    // Detect if already installed (standalone mode)
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone;
+    if (isStandalone) return;
+
+    // Detect iOS
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    setIsIOS(ios);
+
+    if (ios) {
+      // Show guide to Safari users
+      setShowInstallBanner(true);
+    }
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult: { outcome: string }) => {
+      if (choiceResult.outcome === "accepted") {
+        console.log("User accepted the install prompt");
+        setShowInstallBanner(false);
+      }
+      setDeferredPrompt(null);
+    });
+  };
+
   // APIs
   const { data: courses = [] } = useCourses();
   const { data: revisions = [], refetch: refetchRevisions } = useSpacedRevisions();
@@ -171,6 +215,40 @@ function DashboardContent() {
           ) : (
             /* Dashboard widgets */
             <>
+              {/* PWA Install Banner */}
+              {showInstallBanner && (
+                <div className="p-4 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 animate-fade-in">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 mt-0.5">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-foreground">Install BhartX Academy App</h4>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {isIOS 
+                          ? "iOS पर ऐप इंस्टॉल करने के लिए Safari में Share बटन पर क्लिक करके 'Add to Home Screen' चुनें।"
+                          : "आसान Spaced Revisions और Mistake Journal को ऑफ़लाइन एक्सेस करने के लिए ऐप इंस्टॉल करें।"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 mt-1 sm:mt-0">
+                    {!isIOS && (
+                      <button 
+                        onClick={handleInstallClick} 
+                        className="w-full sm:w-auto px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-bold transition-all"
+                      >
+                        Install Now
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => setShowInstallBanner(false)} 
+                      className="px-2.5 py-1.5 border border-border hover:bg-white/5 text-gray-400 hover:text-foreground rounded-xl text-[11px] font-bold"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
               {/* Dynamic Coach Greeting Header */}
               <div className="p-5 rounded-2xl border border-brand-500/10 bg-brand-glow/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-brand-500/10 rounded-full blur-xl pointer-events-none" />

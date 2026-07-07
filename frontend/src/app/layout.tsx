@@ -5,6 +5,19 @@ import Providers from "./providers";
 export const metadata: Metadata = {
   title: "BhartX Academy — Mastery Learning OS",
   description: "AI-Powered Cognitive Learning Platform for NIELIT A-Level complete preparation.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "BhartX Academy",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

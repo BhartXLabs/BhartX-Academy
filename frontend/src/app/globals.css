@@ -44,6 +44,18 @@ body {
   min-height: 100vh;
   margin: 0;
   transition: background-color 0.2s ease, color 0.2s ease;
+  
+  /* PWA/Mobile optimizations for native feel */
+  overscroll-behavior-y: none; /* Prevents pull-to-refresh bounce on mobile browsers */
+  -webkit-tap-highlight-color: transparent; /* Removes blue/grey highlight rectangle on tap */
+  -webkit-touch-callout: none; /* Disables callout menu on long-press */
+  -webkit-overflow-scrolling: touch; /* Momentum scroll for iOS */
+}
+
+/* Make interactive elements unselectable to feel like native buttons */
+button, a, nav, [role="button"] {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Custom Scrollbar */

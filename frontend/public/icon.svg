@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0b10" />
+      <stop offset="100%" stop-color="#161925" />
+    </linearGradient>
+    <linearGradient id="shield-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="50%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+    <linearGradient id="glow-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#818cf8" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#60a5fa" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Outer rounded background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg-grad)" />
+  
+  <!-- Outer glowing accent ring -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="url(#glow-grad)" stroke-width="4" opacity="0.3" />
+
+  <!-- Shield Base Group -->
+  <g transform="translate(128, 110)">
+    <!-- Shield Shadow -->
+    <path d="M128 0 L236 40 C236 150 128 230 128 230 C128 230 20 150 20 40 Z" fill="#000000" opacity="0.4" transform="translate(0, 15)" />
+    
+    <!-- Shield Main Outer Shape -->
+    <path d="M128 0 L236 40 C236 150 128 230 128 230 C128 230 20 150 20 40 Z" fill="url(#shield-grad)" />
+    
+    <!-- Shield Inner Contrast Highlight -->
+    <path d="M128 12 L216 45 C216 138 128 208 128 208 C128 208 40 138 40 45 Z" fill="#090a0f" opacity="0.85" />
+    
+    <!-- Inner Spark/Flame (Cognitive Growth Core) -->
+    <path d="M128 50 C128 50 168 95 168 130 C168 160 148 180 128 180 C108 180 88 160 88 130 C88 95 128 50 128 50 Z" fill="url(#shield-grad)" />
+    
+    <!-- Cognitive Spark Core Glow -->
+    <circle cx="128" cy="140" r="16" fill="#ffffff" filter="drop-shadow(0px 0px 8px #6366f1)" />
+  </g>
+</svg>
