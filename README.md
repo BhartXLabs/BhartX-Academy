@@ -1,118 +1,179 @@
-# BhartX Academy — AI-Powered Cognitive Growth Platform
+# BhartX Academy — AI-Powered Cognitive Learning Operating System
 
-> BhartX Academy is **not** a Learning Management System (LMS) designed to sell videos. It is a **Cognitive Growth Platform (Human Potential Operating System)** built to systematically guide any student — weak, average, or topper — from their current knowledge state to their highest possible cognitive potential.
+BhartX Academy is **not** a traditional Learning Management System (LMS) built to sell static videos. It is an **AI-powered Cognitive Learning Operating System** designed using cognitive science, habit psychology, and modern software architectures to systematically guide students from their current knowledge state to deep, long-term mastery.
 
 ---
 
-## 👁️ Founder & C-Level Strategy
+## 🏗️ System & Architectural Blueprint
 
-### The Paradigm Shift: Growth over Progress
-Traditional LMS platforms focus on **feature lists** and **completion percentages** (e.g., "75% of videos watched"). BhartX Academy shifts the core metric to **Mastery Growth**:
+BhartX Academy separates its concerns into a high-performance **FastAPI asynchronous backend service** and a **Next.js 16 (App Router) mobile-first PWA frontend**.
 
 ```
-[Input: Learner] ──> [AI Cognitive Engine] ──> [Dynamic Interventions] ──> [Mastery Output]
+                           +----------------------------------------+
+                           |       Next.js 16 PWA Client            |
+                           |  (Zustand Auth + TanStack Query Hooks) |
+                           +-------------------+--------------------+
+                                               |
+                                     JSON HTTP | Credentials: "include"
+                                               v
+                           +----------------------------------------+
+                           |       FastAPI Backend Gateway          |
+                           |    (Uvicorn / Gunicorn ASGI Server)    |
+                           +----+--------------+---------------+----+
+                                |              |               |
+         Async SQL (SQLAlchemy) |              | httpx Async   | httpx Async
+                                v              |               v
+                     +----------+---+          |         +-----+------+
+                     |  Postgres /  |          |         | LLaMA 3.3  | (Primary)
+                     |  SQLite DB   |          |         | (via Groq) |
+                     +--------------+          |         +-----+------+
+                                               |               | Fallback
+                                               |               v
+                                               |         +-----+------+
+                                               |         | Gemini 1.5 | (Secondary)
+                                               |         |   Flash    |
+                                               |         +-----+------+
+                                               |               | Fallback
+                                               v               v
+                                         +-----+------+  +-----+------+
+                                         | Rule-based |  | Offline    | (Last Resort)
+                                         | Scheduler  |  | FAQ tutor  |
+                                         +------------+  +------------+
 ```
 
-Every feature on this platform must justify its existence by answering one question: **"Does this improve student learning outcomes?"** If yes, we build it. If no, we reject it.
+---
 
-### The 5 Core Cognitive Engines
-1. **Learning Engine (Active Playback)**:
-   - Enforces a **Pre-learning Focus Contract** checklist before active study.
-   - Integrates the **YouTube IFrame Player API** to pause video playback dynamically at custom timestamps, forcing the student to resolve **in-video MCQ checkpoints**.
-   - Enforces **active retrieval (Feynman recall essay)** and confidence self-calibration (1-5 score rating) post-video.
-2. **Assessment Engine (Mastery gates)**:
-   - Employs chapter-end **mastery gates requiring a &ge; 80% passing score** to unlock subsequent chapters.
-   - Enforces metacognitive **Confidence Calibration (High/Medium/Low indicators)** per question.
-3. **Memory Engine (Spaced Revision Scheduler)**:
-   - Tracks recall success and automates spaced revision intervals on the student's dashboard based on memory decay curves.
-4. **AI Socratic Engine (Active Mentorship)**:
-   - Socratic chatbot that guides learners through analogies, worked examples, and "Try Yourself" drills rather than providing copy-paste solutions.
-5. **Analytics Engine (Multi-Dimensional Diagnostics)**:
-   - Computes 6 Growth Metrics dynamically:
-     - **Concept Understanding**: Accuracy rates on checkpoints.
-     - **Long-Term Retention**: Performance on spaced review recall checks.
-     - **Practical Application**: Coding exercises/practical quiz metrics.
-     - **Metacognitive Confidence**: Alignment of self-reported confidence with actual accuracy.
-     - **Study Consistency**: Streaks and daily active learning habits.
-     - **Cognitive Focus**: Interrupted vs. uninterrupted study sessions.
+## 🧠 Core Cognitive Engines (Active Pedagogy)
+
+The platform implements five interconnected cognitive engines:
+
+### 1. Learning Engine (Active Video Workspace)
+- **Pre-Learning Focus Contract**: Prompts users to declare physical boundaries (no distractions, honest study) before launching a lesson.
+- **Dynamic Checkpoint MCQ Prompts**: Pauses video playback at specific timestamps via YouTube IFrame player integration, prompting the user to solve checkpoints.
+- **Feynman Recall & Metacognitive Calibration**: Post-video active retrieval prompt where students summarize lessons in their own words and report confidence levels (1–5).
+- **Direct Mistake Logging**: Incorrect prompt attempts are logged directly into the `mistake_journals` table via a secure POST `/journal` endpoint.
+
+### 2. Assessment Engine (Mastery Gates)
+- **Eligibility Lock**: Lesson paths and chapter quizzes are locked until prerequisites are met.
+- **Mastery Gates**: Chapter check quizzes require a $\ge 80\%$ passing score to unlock next chapter modules.
+- **Metacognitive Calibration**: Every quiz question requires selecting a confidence indicator (High, Medium, Low) to measure calibration scores.
+
+### 3. Memory Engine (Spaced Revision Scheduler)
+- Uses the **SM-2 (SuperMemo-2) algorithm** to predict memory decay.
+- Tracks correct/incorrect revision recalls, updating stages ($1\dots 5$) and next review timestamps.
+- Displays overdue memory revision cards on the user's dashboard.
+
+### 4. Socratic AI Doubt Solver (Mentor)
+- **Async Falling Pipeline**: Executes async API calls with automated 2x retries and backoff. If Groq LLaMA 3.3 (70B) fails, it falls back to Gemini 1.5 Flash, then to the local Offline FAQ keyword match.
+- **Conversation Session Context**: Backend-managed conversation history table retrieves the last 6 messages dynamically, preventing token overload and client-side history manipulation.
+
+### 5. Real Analytics Engine
+- Computes student cognitive indexes dynamically:
+  - **Learning**: Quiz accuracy, lesson completions, self-reported confidence.
+  - **Memory**: Spaced revision compliance, mistake resolution rates.
+  - **Recommendations**: Priority-sorted action vectors (overdue tasks, unresolved mistakes, low-accuracy subjects).
 
 ---
 
-## 🔑 Secure Authentication & Frictionless Onboarding
+## 📂 Codebase Directory Layout
 
-### 1. Unified Single-Screen Auth Flow (Security First)
-To prevent **email enumeration attacks**, the system avoids checking email existence beforehand. Instead:
-- **Google First Placement**: A colorful Google login CTA sits at the top of the interface.
-- **Unified Email Form**: Enter email and password.
-  - The backend (`POST /api/v1/auth/login-or-signup`) internally evaluates the state. If the email exists, it logs the user in. If not, it creates a new account automatically and signs them in, bypassing registration screens.
-
-### 2. "First Success in 60 Seconds" Onboarding
-Rather than presenting long, blocking questionnaires:
-- **Step 1 (2 Clicks)**: New users only configure their target Name and Course ("NIELIT A-Level"), then click **"Start Learning"** to land straight on the dashboard.
-- **Step 2 (Progressive Profiling)**: Study durations, exam target dates, and weak areas are prompted as gentle, single-question cards at the top of the dashboard over subsequent sessions:
-  ```text
-  [Signup -> Name/Course] ──> [Dashboard] ──> [Daily time check] ──> [Exam Date check]
-  ```
-
-### 3. Session & Provider Tracking
-- **Analytical Updates**: `User` table stores social login providers, avatar URLs, login counts, and last login timestamps.
-- **`UserSession` Logs**: Tracks client browsers, devices, IP addresses, and login/logout times for security audits.
-
----
-
-## 🛠️ Developer Reference & Technical Architecture
-
-### Tech Stack
-* **Frontend**: Next.js 16 (App Router), React 19, Zustand (Client Session Store), TanStack Query v5 (Data caching/fetching), Tailwind CSS, Lucide Icons.
-* **Backend**: FastAPI, Async SQLAlchemy, SQLite (Local Dev fallback) / PostgreSQL, raw `bcrypt` password encryption.
-* **Infrastructure**: Docker Compose, Dockerfile setups.
-
-### Database Schema Overview
-The SQLite database file (`bhartx_academy.db`) maps 22 entities including:
-- **`User`**: Account profiles, streaking records, and onboarding responses.
-- **`UserSession`**: Browser, device, and login audit tracks.
-- **`Course`, `Subject`, `Chapter`, `Lesson`**: Hierarchical content trees.
-- **`VideoPrompt`**: Seeded MCQ metadata triggered at specific timestamps.
-- **`ProgressLog`**: Tracks playback position, percentage watched, and completion status.
-- **`MistakeJournal`**: Unresolved student errors, correct/incorrect choices, and retry histories.
-- **`SpacedRevision`**: Scheduled revision tasks with Stage indicators.
-
----
-
-## 🚀 Getting Started
-
-### 1. Backend Setup (Local Dev)
-Navigate to the backend directory, configure a Python environment, install libraries, seed data, and launch:
-```bash
-cd backend
-python -m venv venv
-.\venv\Scripts\activate
-pip install -r requirements.txt
-
-# Seed curriculum hierarchy, video prompts, and test users
-python seed/seed_data.py
-
-# Launch FastAPI development server
-uvicorn main:app --reload --port 8000
+### Backend (`/backend`)
+```text
+backend/
+├── app/
+│   ├── api/v1/
+│   │   ├── endpoints/
+│   │   │   ├── auth.py          # Unified login/signup, logout, refresh session
+│   │   │   ├── courses.py       # Syllabus index, lesson queries with unlock check
+│   │   │   ├── journal.py       # Mistake journal queries & resolve endpoint
+│   │   │   ├── ai.py            # AI Socratic chat, AI test gen, AI Study Planner
+│   │   │   └── analytics.py     # Real student cognitive statistics API
+│   │   └── router.py            # API route inclusion index
+│   ├── core/
+│   │   ├── config.py            # Pydantic Settings (ENV, API keys, CORS)
+│   │   └── security.py          # JWT Token create, verify, password hashing
+│   ├── db/
+│   │   └── session.py           # SQLAlchemy engines and session factories
+│   ├── models/
+│   │   └── all_models.py        # SQLAlchemy Unified ORM definitions (29 tables)
+│   ├── repositories/            # DB communication layers (Base Repository pattern)
+│   └── services/
+│       ├── ai/
+│       │   ├── providers.py     # Async HTTP LLM clients with chain fallback
+│       │   └── agents/          # Agent behaviors (Tutor, Coach, Examiner)
+│       └── analytics_service.py # Dynamic DB cognitive analytics calculations
+├── Dockerfile                   # Multi-worker Gunicorn Uvicorn production container
+└── requirements.txt             # Python dependencies manifest
 ```
-- API Swagger Docs: `http://localhost:8000/docs`
 
-### 2. Frontend Setup
-Install npm packages and spin up the Next.js compilation server:
-```bash
-cd frontend
-npm install
-npm run dev
+### Frontend (`/frontend`)
+```text
+frontend/
+├── public/
+│   ├── manifest.json            # PWA Web Manifest (native standalone metadata)
+│   └── sw.js                    # Service Worker caching assets & offline support
+├── src/
+│   ├── app/                     # Next.js App Router folders
+│   │   ├── courses/             # Syllabus index and subject detailed pages
+│   │   ├── dashboard/           # Main workspace panel, real analytics indicators
+│   │   ├── journal/             # Mistake notebook list and review games
+│   │   ├── lessons/[lessonId]/  # Feynman recall inputs, contract gateways, video MCQ
+│   │   ├── ai-doubt/            # Socratic AI chat with markdown code rendering
+│   │   └── study-plan/          # Today's daily study tasks priority planner
+│   ├── components/
+│   │   ├── ProtectedRoute.tsx   # Auth validation guard wrapper
+│   │   ├── Sidebar.tsx          # Responsive navigation links with drawer overlay
+│   │   └── Navbar.tsx           # Global search headers, streak counts, hamburger
+│   ├── hooks/
+│   │   └── useApi.ts            # TanStack Query custom data-fetching hooks
+│   └── store/
+│       └── useAuthStore.ts      # Zustand client user state session memory
 ```
-- Local dashboard address: `http://localhost:3000`
 
 ---
 
-## 🔑 Seeding User Profiles
-Test the end-to-end flows with these pre-seeded accounts:
+## 🚀 Deployment & Getting Started
 
-| Role | Email | Password | Onboarding State |
-| :--- | :--- | :--- | :--- |
-| **Student** | `student@bhartx.com` | `studentpassword` | Onboarded *(View growth metrics immediately)* |
-| **Admin** | `admin@bhartx.com` | `adminpassword` | Authorized Admin Center views |
-| **New Signup** | Register via credentials | Select password | Triggers Onboarding Gateway Modal |
+### Local Setup (Backend)
+1. Navigate to the backend directory and set up a virtual environment:
+   ```bash
+   cd backend
+   python -m venv venv
+   .\venv\Scripts\activate   # Windows
+   source venv/bin/activate  # macOS/Linux
+   ```
+2. Install package dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Run the database migrations & seed curriculum mock data:
+   ```bash
+   python seed/seed_data.py
+   ```
+4. Start the FastAPI development server:
+   ```bash
+   uvicorn main:app --reload --port 8000
+   ```
+
+### Local Setup (Frontend)
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+2. Install npm packages:
+   ```bash
+   npm install
+   ```
+3. Spin up the Next.js development server:
+   ```bash
+   npm run dev
+   ```
+
+### Hosting on Vercel + Render
+- **Frontend (Vercel)**: Point repository to `/frontend` directory. Add env variable:
+  - `NEXT_PUBLIC_API_URL` = `https://your-backend-render-app.onrender.com/api/v1`
+- **Backend (Render)**: Deploy as **Docker Web Service** using the backend Dockerfile. Add env variables:
+  - `ENV` = `production`
+  - `DATABASE_URL` = `postgresql://your-neon-postgres-connection-string?sslmode=require`
+  - `ALLOWED_ORIGINS` = `https://your-frontend-vercel-app.vercel.app`
+  - Setup API Keys (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`) safely in Render's dashboard.
