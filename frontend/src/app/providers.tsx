@@ -20,24 +20,26 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      // CRITICAL: Do NOT call hydrate() here.
-      // hydrate() must only be called AFTER /auth/me resolves.
-      // Calling it early sets isHydrated=true with isAuthenticated=false,
-      // which causes ProtectedRoute to redirect to /login BEFORE the
+      // CRITICAL FIX: Do NOT call hydrate() before /auth/me resolves.
+      // Calling hydrate() early sets isHydrated=true + isAuthenticated=false,
+      // which causes ProtectedRoute to instantly redirect to /login BEFORE the
       // session cookie is validated — resulting in blank pages for logged-in users.
+      //
+      // setAuth()  → sets isHydrated=true AND isAuthenticated=true  (logged in)
+      // clearAuth() → sets isHydrated=true AND isAuthenticated=false (not logged in)
+      // Both are called AFTER /auth/me settles.
 
-      // Validate session by fetching profile from server (uses HttpOnly cookie)
       try {
         const { apiFetch } = await import("@/utils/api");
         const user = await apiFetch("/auth/me", { skipAuth: true });
         if (user && user.id) {
-          useAuthStore.getState().setAuth(user); // sets isHydrated=true + isAuthenticated=true
+          useAuthStore.getState().setAuth(user);
         } else {
-          useAuthStore.getState().clearAuth(); // sets isHydrated=true + isAuthenticated=false
+          useAuthStore.getState().clearAuth();
         }
       } catch {
-        // No valid session cookie — clean unauthenticated state
-        useAuthStore.getState().clearAuth(); // sets isHydrated=true + isAuthenticated=false
+        // No valid session cookie — set clean unauthenticated state
+        useAuthStore.getState().clearAuth();
       }
     };
     initAuth();
@@ -55,7 +57,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         );
       });
     }
-  }, [hydrate]);
+  }, []); // Empty deps — run only on mount. No hydrate dependency needed.
 
   return (
     <QueryClientProvider client={queryClient}>
