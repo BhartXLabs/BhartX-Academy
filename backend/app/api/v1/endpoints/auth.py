@@ -15,6 +15,11 @@ import datetime
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login-oauth")
 
+# Cookie security settings — HTTPS-only in production, plain HTTP in local dev
+_IS_PROD = settings.ENV == "production"
+_COOKIE_SECURE = _IS_PROD          # True in prod (HTTPS), False in dev (HTTP localhost)
+_COOKIE_SAMESITE = "none" if _IS_PROD else "lax"  # 'none' requires secure=True
+
 # Dependency to get current user
 def get_current_user(request: Request, db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -69,16 +74,16 @@ def login(request: Request, user_in: UserLogin, response: Response, db: Session 
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
         max_age=15 * 60
     )
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
         max_age=30 * 24 * 60 * 60
     )
     
@@ -119,16 +124,16 @@ def refresh(request: Request, refresh_in: TokenRefreshRequest, response: Respons
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
         max_age=15 * 60
     )
     response.set_cookie(
         key="refresh_token",
         value=new_refresh_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
         max_age=30 * 24 * 60 * 60
     )
     
@@ -198,16 +203,16 @@ def login_or_signup(request: Request, user_in: UserLogin, response: Response, db
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
         max_age=15 * 60
     )
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
         max_age=30 * 24 * 60 * 60
     )
     
@@ -314,16 +319,16 @@ def google_login(request: Request, google_in: GoogleAuthRequest, response: Respo
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
         max_age=15 * 60
     )
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
         max_age=30 * 24 * 60 * 60
     )
     
@@ -376,19 +381,18 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db), 
         user_repo.revoke_refresh_session(db, refresh_token)
 
     # delete_cookie MUST use IDENTICAL attributes as set_cookie:
-    # secure=True, samesite="none" — otherwise the browser treats it as a different cookie
     response.delete_cookie(
         key="access_token",
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
         path="/"
     )
     response.delete_cookie(
         key="refresh_token",
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
         path="/"
     )
     return {"message": "Logged out successfully"}

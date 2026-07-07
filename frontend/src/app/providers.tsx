@@ -18,23 +18,26 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
-  const hydrate = useAuthStore((state) => state.hydrate);
-
   useEffect(() => {
     const initAuth = async () => {
-      // Mark as hydrated immediately (no localStorage to read)
-      hydrate();
+      // CRITICAL: Do NOT call hydrate() here.
+      // hydrate() must only be called AFTER /auth/me resolves.
+      // Calling it early sets isHydrated=true with isAuthenticated=false,
+      // which causes ProtectedRoute to redirect to /login BEFORE the
+      // session cookie is validated — resulting in blank pages for logged-in users.
 
       // Validate session by fetching profile from server (uses HttpOnly cookie)
       try {
         const { apiFetch } = await import("@/utils/api");
-        const user = await apiFetch("/auth/me");
-        if (user) {
-          useAuthStore.getState().setAuth(user);
+        const user = await apiFetch("/auth/me", { skipAuth: true });
+        if (user && user.id) {
+          useAuthStore.getState().setAuth(user); // sets isHydrated=true + isAuthenticated=true
+        } else {
+          useAuthStore.getState().clearAuth(); // sets isHydrated=true + isAuthenticated=false
         }
       } catch {
-        // No valid session cookie — ensure clean unauthenticated state
-        useAuthStore.getState().clearAuth();
+        // No valid session cookie — clean unauthenticated state
+        useAuthStore.getState().clearAuth(); // sets isHydrated=true + isAuthenticated=false
       }
     };
     initAuth();
