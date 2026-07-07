@@ -71,7 +71,8 @@ self.addEventListener("fetch", (event) => {
           }
           
           // Return offline fallback if hitting a page route
-          if (request.headers.get("accept").includes("text/html")) {
+          const acceptHeader = request.headers.get("accept");
+          if (acceptHeader && acceptHeader.includes("text/html")) {
             return caches.match(OFFLINE_URL);
           }
         });
