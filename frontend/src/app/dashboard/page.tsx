@@ -97,6 +97,10 @@ function DashboardContent() {
   const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [studentName, setStudentName] = useState("");
   const [selectedCourse, setSelectedCourse] = useState("A-Level");
+  const [gender, setGender] = useState("male");
+  const [mobileNumber, setMobileNumber] = useState("");
+  const [customPassword, setCustomPassword] = useState("");
+  const [onboardStep, setOnboardStep] = useState(1);
 
   useEffect(() => {
     if (user) {
@@ -141,6 +145,9 @@ function DashboardContent() {
     profileUpdateMutation.mutate({
       name: studentName,
       course: selectedCourse,
+      gender: gender,
+      mobile_number: mobileNumber,
+      password: customPassword.trim() ? customPassword : undefined,
       onboarded: true
     }, {
       onSuccess: () => {
@@ -531,55 +538,158 @@ function DashboardContent() {
             <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
               <div className="w-full max-w-md bg-card-dark border border-border rounded-2xl p-6 shadow-2xl space-y-6 text-center glass-card">
                 
-                <div className="space-y-2">
-                  <span className="text-[10px] font-bold text-brand-500 uppercase tracking-wider block glow-text-indigo">Curriculum Selection</span>
-                  <h2 className="text-base font-extrabold text-foreground">Configure BhartX Learning OS</h2>
-                  <p className="text-[11px] text-gray-400 leading-relaxed">
-                    Set your target curriculum. You can customize daily study hours later.
-                  </p>
+                {/* Step indicator header */}
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-[9px] font-extrabold text-brand-500 uppercase tracking-wider">
+                    Step {onboardStep} of {user?.provider === "google" ? 3 : 2}
+                  </span>
+                  <div className="flex gap-1">
+                    <div className={`w-6 h-1 rounded ${onboardStep >= 1 ? "bg-brand-500" : "bg-gray-700"}`} />
+                    {user?.provider === "google" && (
+                      <div className={`w-6 h-1 rounded ${onboardStep >= 2 ? "bg-brand-500" : "bg-gray-700"}`} />
+                    )}
+                    <div className={`w-6 h-1 rounded ${onboardStep === (user?.provider === "google" ? 3 : 2) ? "bg-brand-500" : "bg-gray-700"}`} />
+                  </div>
                 </div>
 
-                <div className="space-y-4 text-left">
-                  {/* Name field (Required if missing) */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Your Name</label>
-                    <input
-                      type="text"
-                      value={studentName}
-                      onChange={(e) => setStudentName(e.target.value)}
-                      className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-brand-500"
-                      placeholder="Enter name"
-                    />
-                  </div>
+                {onboardStep === 1 && (
+                  <div className="space-y-5 text-left">
+                    <div className="text-center space-y-1">
+                      <h2 className="text-sm font-extrabold text-foreground">Complete Your Profile</h2>
+                      <p className="text-[10.5px] text-gray-400">Please enter your basic information to initialize your account.</p>
+                    </div>
 
-                  {/* Course select list */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Course target</label>
-                    <select
-                      value={selectedCourse}
-                      onChange={(e) => setSelectedCourse(e.target.value)}
-                      className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-brand-500"
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Your Name</label>
+                        <input
+                          type="text"
+                          value={studentName}
+                          onChange={(e) => setStudentName(e.target.value)}
+                          className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-brand-500"
+                          placeholder="Enter your name"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Gender</label>
+                          <select
+                            value={gender}
+                            onChange={(e) => setGender(e.target.value)}
+                            className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-brand-500"
+                          >
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Mobile Number</label>
+                          <input
+                            type="tel"
+                            value={mobileNumber}
+                            onChange={(e) => setMobileNumber(e.target.value)}
+                            className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-brand-500"
+                            placeholder="Enter 10-digit number"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setOnboardStep(user?.provider === "google" ? 2 : 3)}
+                      disabled={!studentName.trim() || !mobileNumber.trim()}
+                      className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <option value="A-Level">NIELIT A-Level (Diploma)</option>
-                      <option value="O-Level" disabled>NIELIT O-Level (Coming Soon)</option>
-                    </select>
+                      <span>Continue Setup</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
                   </div>
-                </div>
+                )}
 
-                <button
-                  onClick={handleStartLearning}
-                  disabled={!studentName.trim() || profileUpdateMutation.isPending}
-                  className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5"
-                >
-                  {profileUpdateMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <span>Initialize Learning Engine</span>
-                      <ArrowRight className="w-4 h-4 animate-pulse" />
-                    </>
-                  )}
-                </button>
+                {onboardStep === 2 && user?.provider === "google" && (
+                  <div className="space-y-5 text-left">
+                    <div className="text-center space-y-1">
+                      <h2 className="text-sm font-extrabold text-foreground">Choose a Password</h2>
+                      <p className="text-[10.5px] text-gray-400">Set a password to log in directly via email in the future.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Password</label>
+                      <input
+                        type="password"
+                        value={customPassword}
+                        onChange={(e) => setCustomPassword(e.target.value)}
+                        className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-brand-500"
+                        placeholder="Create strong password"
+                      />
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setOnboardStep(1)}
+                        className="flex-1 py-2.5 border border-border text-gray-300 text-xs font-bold rounded-xl hover:bg-white/5 transition-all"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={() => setOnboardStep(3)}
+                        disabled={!customPassword.trim() || customPassword.length < 6}
+                        className="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <span>Continue</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {onboardStep === 3 && (
+                  <div className="space-y-5 text-left">
+                    <div className="text-center space-y-1">
+                      <h2 className="text-sm font-extrabold text-foreground">Configure Learning Target</h2>
+                      <p className="text-[10.5px] text-gray-400">Set your academic track target to boot the syllabus engine.</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Target Curriculum</label>
+                        <select
+                          value={selectedCourse}
+                          onChange={(e) => setSelectedCourse(e.target.value)}
+                          className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-brand-500"
+                        >
+                          <option value="A-Level">NIELIT A-Level (Advanced Diploma)</option>
+                          <option value="O-Level" disabled>NIELIT O-Level (Coming Soon)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setOnboardStep(user?.provider === "google" ? 2 : 1)}
+                        className="flex-1 py-2.5 border border-border text-gray-300 text-xs font-bold rounded-xl hover:bg-white/5 transition-all"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={handleStartLearning}
+                        disabled={profileUpdateMutation.isPending}
+                        className="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        {profileUpdateMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <span>Launch Dashboard</span>
+                            <ArrowRight className="w-4 h-4 animate-pulse" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

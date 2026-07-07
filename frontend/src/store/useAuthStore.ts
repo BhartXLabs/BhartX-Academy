@@ -10,6 +10,7 @@ interface User {
   onboarded: boolean;
   onboarding_profile?: any;
   avatar_url?: string;
+  provider?: string;
 }
 
 interface AuthState {

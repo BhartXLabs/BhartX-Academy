@@ -293,6 +293,9 @@ export function useProfileUpdate() {
       weak_subjects?: string[];
       strong_subjects?: string[];
       knowledge_level?: string;
+      gender?: string;
+      mobile_number?: string;
+      password?: string;
     }) => apiFetch("/auth/profile-update", {
       method: "POST",
       body: JSON.stringify(profile),

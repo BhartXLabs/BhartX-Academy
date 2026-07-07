@@ -49,6 +49,10 @@ class ProfileUpdateRequest(BaseModel):
     weak_subjects: Optional[List[str]] = None
     strong_subjects: Optional[List[str]] = None
     knowledge_level: Optional[str] = None
+    gender: Optional[str] = None
+    mobile_number: Optional[str] = None
+    password: Optional[str] = None
+
 
 class OnboardingRequest(BaseModel):
     who_are_you: str

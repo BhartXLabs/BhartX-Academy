@@ -336,9 +336,18 @@ def profile_update(profile_in: ProfileUpdateRequest, db: Session = Depends(get_d
         current_user.name = profile_in.name
     if profile_in.onboarded is not None:
         current_user.onboarded = profile_in.onboarded
+    if profile_in.password is not None:
+        from app.core.security import get_password_hash
+        current_user.hashed_password = get_password_hash(profile_in.password)
 
     # Gradual profile updates to onboarding_profile JSON
     profile = current_user.onboarding_profile or {}
+    
+    if profile_in.gender is not None:
+        profile["gender"] = profile_in.gender
+    if profile_in.mobile_number is not None:
+        profile["mobile_number"] = profile_in.mobile_number
+
     
     if profile_in.course is not None:
         profile["course"] = profile_in.course
