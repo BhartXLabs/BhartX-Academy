@@ -5,16 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Flame, Award, Bell, Settings, LogOut, Search, Check, Menu, X } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useSidebarStore } from "@/store/useSidebarStore";
 import { useNotifications, useMarkNotificationRead } from "@/hooks/useApi";
-import Sidebar from "./Sidebar";
 
 export default function Navbar() {
   const { user, clearAuth } = useAuthStore();
+  const { openMobile } = useSidebarStore();
   const router = useRouter();
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const { data: notifications = [] } = useNotifications();
   const markReadMutation = useMarkNotificationRead();
@@ -59,9 +59,9 @@ export default function Navbar() {
 
         {/* Left: Hamburger (mobile) + Brand */}
         <div className="flex items-center gap-3">
-          {/* Hamburger — only on mobile */}
+          {/* Hamburger — dispatches to global sidebar store */}
           <button
-            onClick={() => setMobileSidebarOpen(true)}
+            onClick={openMobile}
             className="md:hidden p-1.5 rounded-lg border border-border text-gray-400 hover:text-foreground hover:bg-bg-dark transition-colors"
             aria-label="Open menu"
           >
@@ -127,7 +127,7 @@ export default function Navbar() {
               )}
             </button>
 
-            {/* Notifications Dropdown — fixed width, responsive positioning */}
+            {/* Notifications Dropdown */}
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-72 sm:w-80 rounded-xl border border-border bg-card-dark p-4 shadow-xl z-50">
                 <div className="flex items-center justify-between pb-3 border-b border-border">
@@ -206,12 +206,7 @@ export default function Navbar() {
           </form>
         </div>
       )}
-
-      {/* Mobile Sidebar Drawer — rendered here so it's above everything */}
-      <Sidebar
-        mobileOpen={mobileSidebarOpen}
-        onMobileClose={() => setMobileSidebarOpen(false)}
-      />
+      {/* NOTE: Sidebar is NOT rendered here — it's rendered ONCE in the shared layout */}
     </>
   );
 }
