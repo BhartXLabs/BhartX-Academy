@@ -33,6 +33,8 @@ class Settings(BaseSettings):
 
     def __init__(self, **values):
         super().__init__(**values)
+        if self.DATABASE_URL.startswith("postgres://"):
+            self.DATABASE_URL = self.DATABASE_URL.replace("postgres://", "postgresql://", 1)
         if self.ENV == "production":
             if self.SECRET_KEY == "d6e3dfbc5d483b8a6a6b5a329d2bfbe5efbc20f8c5b16954a2a19ef58b99c0d7":
                 raise ValueError(
