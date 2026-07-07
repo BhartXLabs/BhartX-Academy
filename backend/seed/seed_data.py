@@ -13,9 +13,11 @@ def seed_database():
     print("Seeding database data...")
     db = SessionLocal()
     try:
-        # Reset tables for fresh seed
-        all_models.Base.metadata.drop_all(bind=engine)
-        all_models.Base.metadata.create_all(bind=engine)
+        # Check if database is already seeded to prevent duplicate record insertion or foreign key constraint crashes
+        course_exists = db.query(all_models.Course).filter(all_models.Course.code == "a-level").first()
+        if course_exists:
+            print("Database already contains curriculum data. Skipping seeding.")
+            return
 
         # 1. Create Default Users (Admin & Student)
         admin = all_models.User(
