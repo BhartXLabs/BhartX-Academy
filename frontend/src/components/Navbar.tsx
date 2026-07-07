@@ -15,9 +15,16 @@ export default function Navbar() {
 
   const unreadCount = notifications.filter((n: any) => !n.is_read).length;
 
-  const handleLogout = () => {
-    clearAuth();
-    window.location.href = "/login";
+  const handleLogout = async () => {
+    try {
+      const { apiFetch } = await import("@/utils/api");
+      await apiFetch("/auth/logout", { method: "POST" });
+    } catch (err) {
+      console.error("Backend logout call failed: ", err);
+    } finally {
+      clearAuth();
+      window.location.href = "/login";
+    }
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
