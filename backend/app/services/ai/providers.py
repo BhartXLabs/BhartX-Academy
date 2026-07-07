@@ -65,6 +65,35 @@ class OpenAIProvider(BaseAIProvider):
         except Exception as e:
             return f"Error contacting OpenAI API: {str(e)}"
 
+class GroqProvider(BaseAIProvider):
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.url = "https://api.groq.com/openai/v1/chat/completions"
+
+    def generate_text(self, system_prompt: str, user_prompt: str) -> str:
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+        }
+        try:
+            req = urllib.request.Request(
+                self.url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.api_key}"
+                },
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                return res_data["choices"][0]["message"]["content"]
+        except Exception as e:
+            return f"Error contacting Groq API: {str(e)}"
+
 class OfflineFAQProvider(BaseAIProvider):
     def __init__(self):
         # Seeded curriculum topics matching for Socratic answers

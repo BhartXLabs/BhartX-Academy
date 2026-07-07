@@ -9,6 +9,8 @@ from app.repositories.user import user_repo
 from app.schemas.quiz import QuizResponse, QuizAttemptSubmit, QuizAttemptResponse
 import datetime
 
+from app.repositories.progress import progress_repo
+
 router = APIRouter()
 
 @router.get("/{quiz_id}", response_model=QuizResponse)
@@ -23,6 +25,15 @@ def submit_quiz(quiz_id: int, submit_in: QuizAttemptSubmit, db: Session = Depend
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
+        
+    # Security: Verify if the student is eligible to take this quiz (is the quiz chapter unlocked?)
+    # A chapter's quiz is unlocked if the first lesson in the chapter is unlocked.
+    from app.models.all_models import Lesson
+    first_lesson = db.query(Lesson).filter(Lesson.chapter_id == quiz.chapter_id).order_by(Lesson.order).first()
+    if first_lesson:
+        unlocked = progress_repo.is_lesson_unlocked(db, current_user.id, first_lesson.id)
+        if not unlocked:
+            raise HTTPException(status_code=403, detail="Eligibility error: Master previous lessons and chapters first.")
         
     questions = db.query(QuizQuestion).filter(QuizQuestion.quiz_id == quiz_id).all()
     if not questions:

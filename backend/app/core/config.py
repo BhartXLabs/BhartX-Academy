@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # AI Keys
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
+    GROQ_API_KEY: Optional[str] = None
 
     class Config:
         env_file = ".env"

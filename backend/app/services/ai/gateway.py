@@ -1,5 +1,5 @@
 from app.core.config import settings
-from app.services.ai.providers import GeminiProvider, OpenAIProvider, OfflineFAQProvider
+from app.services.ai.providers import GeminiProvider, OpenAIProvider, GroqProvider, OfflineFAQProvider
 from app.services.ai.agents.tutor import TutorAgent
 from app.services.ai.agents.coach import CoachAgent
 from app.services.ai.agents.examiner import ExaminerAgent
@@ -7,7 +7,10 @@ from app.services.ai.agents.examiner import ExaminerAgent
 class AIGateway:
     def __init__(self):
         # Select AI Provider based on API key availability
-        if settings.GEMINI_API_KEY:
+        if settings.GROQ_API_KEY:
+            self.provider = GroqProvider(settings.GROQ_API_KEY)
+            self.provider_name = "groq"
+        elif settings.GEMINI_API_KEY:
             self.provider = GeminiProvider(settings.GEMINI_API_KEY)
             self.provider_name = "gemini"
         elif settings.OPENAI_API_KEY:

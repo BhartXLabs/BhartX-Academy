@@ -13,9 +13,11 @@ def schedule_spaced_revisions_task(user_id: int, lesson_id: int):
     db = SessionLocal()
     try:
         progress_repo.schedule_spaced_revisions(db, user_id, lesson_id)
+        db.commit() # Explicitly commit background transactions
     except Exception as e:
         import logging
         logging.error(f"Error executing revision schedule background task: {e}")
+        db.rollback() # Rollback on exception to release connection locks cleanly
     finally:
         db.close()
 

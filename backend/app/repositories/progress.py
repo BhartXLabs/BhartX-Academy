@@ -60,26 +60,25 @@ class ProgressRepository(BaseRepository[LessonProgress]):
         return reflection
 
     def schedule_spaced_revisions(self, db: Session, user_id: int, lesson_id: int) -> None:
-        # Check if already scheduled
+        # Check if already scheduled (starts with Stage 1)
         existing = db.query(SpacedRevision).filter(
             SpacedRevision.user_id == user_id,
-            SpacedRevision.lesson_id == lesson_id
+            SpacedRevision.lesson_id == lesson_id,
+            SpacedRevision.stage == 1
         ).first()
         if existing:
             return
 
-        intervals = [1, 3, 7, 15, 30]  # Days
+        # Stage 1 is scheduled exactly 1 day (24 hours) after lesson completion
         now = datetime.datetime.utcnow()
-        
-        for i, days in enumerate(intervals):
-            revision = SpacedRevision(
-                user_id=user_id,
-                lesson_id=lesson_id,
-                stage=i + 1,
-                scheduled_date=now + datetime.timedelta(days=days),
-                is_completed=False
-            )
-            db.add(revision)
+        revision = SpacedRevision(
+            user_id=user_id,
+            lesson_id=lesson_id,
+            stage=1,
+            scheduled_date=now + datetime.timedelta(days=1),
+            is_completed=False
+        )
+        db.add(revision)
         db.commit()
 
     def get_spaced_revisions_due(self, db: Session, user_id: int) -> List[SpacedRevision]:
@@ -102,9 +101,37 @@ class ProgressRepository(BaseRepository[LessonProgress]):
             .filter(SpacedRevision.id == revision_id)
             .first()
         )
-        if revision:
+        if revision and not revision.is_completed:
             revision.is_completed = True
             revision.completed_at = datetime.datetime.utcnow()
+            
+            # Dynamic SM-2 Flow: Schedule the next stage dynamically
+            # Stages intervals mapping: Stage 1 -> +3 days, Stage 2 -> +7 days, Stage 3 -> +15 days, Stage 4 -> +30 days
+            intervals = {1: 3, 2: 7, 3: 15, 4: 30}
+            current_stage = revision.stage
+            
+            if current_stage in intervals:
+                next_stage = current_stage + 1
+                next_days = intervals[current_stage]
+                
+                # Check if next stage already exists to avoid duplication
+                next_exists = db.query(SpacedRevision).filter(
+                    SpacedRevision.user_id == revision.user_id,
+                    SpacedRevision.lesson_id == revision.lesson_id,
+                    SpacedRevision.stage == next_stage
+                ).first()
+                
+                if not next_exists:
+                    now = datetime.datetime.utcnow()
+                    new_revision = SpacedRevision(
+                        user_id=revision.user_id,
+                        lesson_id=revision.lesson_id,
+                        stage=next_stage,
+                        scheduled_date=now + datetime.timedelta(days=next_days),
+                        is_completed=False
+                    )
+                    db.add(new_revision)
+            
             db.commit()
             db.refresh(revision)
         return revision
