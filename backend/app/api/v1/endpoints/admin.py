@@ -36,20 +36,23 @@ def get_admin_analytics(db: Session = Depends(get_db), current_admin=Depends(get
     performers_list = [{"name": u.name, "xp": u.xp, "streak": u.streak} for u in top_performers]
 
     # Confusing/Difficult chapters (average quiz score < 70)
+    # Using a single join to eliminate N+1 query loop
     difficult_chapters = []
     chapter_scores = db.query(
-        Quiz.chapter_id,
+        Chapter.title,
         func.avg(QuizAttempt.score).label("avg_score")
-    ).join(QuizAttempt, QuizAttempt.quiz_id == Quiz.id).group_by(Quiz.chapter_id).all()
+    ).select_from(Quiz) \
+     .join(QuizAttempt, QuizAttempt.quiz_id == Quiz.id) \
+     .join(Chapter, Chapter.id == Quiz.chapter_id) \
+     .group_by(Chapter.id, Chapter.title) \
+     .having(func.avg(QuizAttempt.score) < 70.0) \
+     .all()
 
-    for ch_score in chapter_scores:
-        if ch_score.avg_score < 70.0:
-            ch = db.query(Chapter).filter(Chapter.id == ch_score.chapter_id).first()
-            if ch:
-                difficult_chapters.append({
-                    "chapter_title": ch.title,
-                    "avg_score": round(ch_score.avg_score, 1)
-                })
+    for ch_title, avg_score in chapter_scores:
+        difficult_chapters.append({
+            "chapter_title": ch_title,
+            "avg_score": round(avg_score, 1)
+        })
 
     return {
         "total_students": total_students,

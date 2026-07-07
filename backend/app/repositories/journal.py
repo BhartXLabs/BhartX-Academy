@@ -11,6 +11,12 @@ class JournalRepository(BaseRepository[MistakeJournal]):
             MistakeJournal.resolved == resolved
         ).offset(skip).limit(limit).all()
 
+    def count_student_mistakes(self, db: Session, user_id: int, resolved: bool = False) -> int:
+        return db.query(MistakeJournal).filter(
+            MistakeJournal.user_id == user_id,
+            MistakeJournal.resolved == resolved
+        ).count()
+
     def log_mistake(self, db: Session, user_id: int, question_text: str, options: List[str], selected_option_index: int, correct_option_index: int, confidence_rating: str, explanation: Optional[str], source_type: str, source_id: Optional[int]) -> MistakeJournal:
         # Check if identical unresolved mistake exists to prevent clutter
         existing = db.query(MistakeJournal).filter(

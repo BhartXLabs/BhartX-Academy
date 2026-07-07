@@ -1,6 +1,18 @@
 from app.services.ai.providers import BaseAIProvider
 import json
 
+def clean_json_response(raw_text: str) -> str:
+    cleaned = raw_text.strip()
+    if cleaned.startswith("```"):
+        # Remove markdown code blocks (e.g., ```json ... ```)
+        lines = cleaned.splitlines()
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines[-1].startswith("```"):
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+    return cleaned
+
 class ExaminerAgent:
     def __init__(self, provider: BaseAIProvider):
         self.provider = provider
@@ -20,8 +32,9 @@ class ExaminerAgent:
         
         try:
             raw = self.provider.generate_text(self.system_prompt, prompt)
+            cleaned = clean_json_response(raw)
             # Check if it parses as valid JSON
-            parsed = json.loads(raw)
+            parsed = json.loads(cleaned)
             if "questions" in parsed:
                 return parsed
         except Exception:

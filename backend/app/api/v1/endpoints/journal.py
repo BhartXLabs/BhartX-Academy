@@ -33,8 +33,8 @@ def resolve_mistake(mistake_id: int, resolve_in: MistakeResolveRequest, db: Sess
 
 @router.get("/stats")
 def get_mistake_stats(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    unresolved_count = len(journal_repo.get_student_mistakes(db, current_user.id, resolved=False, limit=1000))
-    resolved_count = len(journal_repo.get_student_mistakes(db, current_user.id, resolved=True, limit=1000))
+    unresolved_count = journal_repo.count_student_mistakes(db, current_user.id, resolved=False)
+    resolved_count = journal_repo.count_student_mistakes(db, current_user.id, resolved=True)
     return {
         "unresolved": unresolved_count,
         "resolved": resolved_count,

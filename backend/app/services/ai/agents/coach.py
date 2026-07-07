@@ -17,9 +17,10 @@ class CoachAgent:
             f"Current stats: {streak} day streak, {xp} XP, and {revisions_due} spaced revisions scheduled for today."
         )
         
+        raw_response = "Error contacting AI provider."
         try:
-            raw = self.provider.generate_text(self.system_prompt, prompt)
-            parsed = json.loads(raw)
+            raw_response = self.provider.generate_text(self.system_prompt, prompt)
+            parsed = json.loads(raw_response)
             if isinstance(parsed, dict) and "explanation" in parsed:
                 # Offline provider override
                 msg = (
@@ -36,7 +37,6 @@ class CoachAgent:
         except Exception:
             pass
 
-        raw_response = self.provider.generate_text(self.system_prompt, prompt)
         return {
             "role": "coach",
             "answer": raw_response,

@@ -16,6 +16,7 @@ class TutorAgent:
         )
 
     def answer_doubt(self, question: str) -> dict:
+        raw_response = "Error contacting AI provider."
         try:
             raw_response = self.provider.generate_text(self.system_prompt, question)
             # Try to parse as JSON first (if offline provider)
@@ -25,8 +26,7 @@ class TutorAgent:
         except Exception:
             pass
 
-        # Parse LLM response or wrap standard output
-        raw_response = self.provider.generate_text(self.system_prompt, question)
+        # If not JSON (standard LLM output), wrap the single cached response directly
         return {
             "role": "tutor",
             "answer": raw_response,

@@ -53,17 +53,17 @@ class CourseRepository(BaseRepository[Course]):
         results = []
         
         # Search Courses
-        courses = db.query(Course).filter(Course.title.like(search_query) | Course.description.like(search_query)).limit(5).all()
+        courses = db.query(Course).filter(Course.title.ilike(search_query) | Course.description.ilike(search_query)).limit(5).all()
         for c in courses:
             results.append({"type": "course", "id": c.id, "title": c.title, "description": c.description})
 
         # Search Subjects
-        subjects = db.query(Subject).filter(Subject.title.like(search_query) | Subject.description.like(search_query)).limit(5).all()
+        subjects = db.query(Subject).filter(Subject.title.ilike(search_query) | Subject.description.ilike(search_query)).limit(5).all()
         for s in subjects:
             results.append({"type": "subject", "id": s.id, "title": s.title, "description": s.description})
 
         # Search Lessons
-        lessons = db.query(Lesson).filter(Lesson.title.like(search_query) | Lesson.description.like(search_query)).limit(10).all()
+        lessons = db.query(Lesson).filter(Lesson.title.ilike(search_query) | Lesson.description.ilike(search_query)).limit(10).all()
         for l in lessons:
             results.append({"type": "lesson", "id": l.id, "title": l.title, "description": l.description})
 
