@@ -59,56 +59,24 @@ function LoginContent() {
     }
   }, [router]);
 
-  // Load Google Identity Services script and initialize
+  // Parse id_token from window.location.hash on callback redirect (OAuth 2.0 Implicit Flow)
   useEffect(() => {
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) return; // GSI unavailable in dev without client ID
-
-    const loadGSI = () => {
-      if (window.google) {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleGoogleCredentialResponse,
-          auto_select: false,
-          cancel_on_tap_outside: true,
-          use_fedcm_for_prompt: true,
-        });
-
-        // Render official Google Sign-In button inside placeholder
-        const btnElement = document.getElementById("google-signin-btn");
-        if (btnElement) {
-          window.google.accounts.id.renderButton(btnElement, {
-            theme: "outline",
-            size: "large",
-            width: 320,
-            text: "continue_with",
-            shape: "rectangular"
-          });
-        }
+    if (typeof window !== "undefined" && window.location.hash) {
+      const params = new URLSearchParams(window.location.hash.substring(1));
+      const idToken = params.get("id_token");
+      if (idToken) {
+        // Clear hash from address bar cleanly
+        window.history.replaceState(null, "", window.location.pathname);
+        handleGoogleCredentialResponse(idToken);
       }
-    };
-
-    if (document.getElementById("google-gsi-script")) {
-      loadGSI();
-      return;
     }
+  }, [router]);
 
-    const script = document.createElement("script");
-    script.id = "google-gsi-script";
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = loadGSI;
-    document.head.appendChild(script);
-  }, []);
-
-  // Called by Google GSI with the real credential (id_token)
-  const handleGoogleCredentialResponse = async (credentialResponse: { credential: string }) => {
+  const handleGoogleCredentialResponse = async (idToken: string) => {
     setGoogleLoading(true);
     setErrorMsg(null);
     try {
-      await googleLoginMutation.mutateAsync(credentialResponse.credential);
-      // Fetch user profile (cookie is now set by server)
+      await googleLoginMutation.mutateAsync(idToken);
       const userProfile = await apiFetch("/auth/me");
       setAuth(userProfile);
       router.push("/dashboard");
@@ -117,6 +85,18 @@ function LoginContent() {
     } finally {
       setGoogleLoading(false);
     }
+  };
+
+  const handleCustomGoogleLogin = () => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      setErrorMsg("Google OAuth client ID is not configured.");
+      return;
+    }
+    setGoogleLoading(true);
+    const redirectUri = window.location.origin + "/login";
+    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=id_token&scope=openid%20email%20profile&nonce=bhartxnonce_${Date.now()}`;
+    window.location.href = oauthUrl;
   };
 
 
@@ -164,9 +144,28 @@ function LoginContent() {
           </div>
         )}
 
-        {/* 1. Google OAuth (Official secure iframe Button) */}
+        {/* 1. Google OAuth (Standard GET Redirect Flow) */}
         <div className="w-full flex justify-center">
-          <div id="google-signin-btn" className="w-full flex justify-center" style={{ minHeight: "44px" }} />
+          <button
+            type="button"
+            onClick={handleCustomGoogleLogin}
+            disabled={googleLoading}
+            className="w-full py-2.5 rounded-xl border border-border bg-card-dark hover:bg-white/5 text-gray-300 text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+          >
+            {googleLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin text-brand-500" />
+            ) : (
+              <>
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#EA4335"
+                    d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114-3.34 0-6.05-2.71-6.05-6.05s2.71-6.05 6.05-6.05c1.496 0 2.857.545 3.906 1.446l3.064-3.064C18.985 2.112 15.795 1 12.24 1 6.033 1 1 6.033 1 12.24s5.033 11.24 11.24 11.24c5.898 0 10.87-4.212 10.87-11.24 0-.768-.078-1.503-.223-2.227H12.24z"
+                  />
+                </svg>
+                <span>Continue with Google</span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* Divider */}

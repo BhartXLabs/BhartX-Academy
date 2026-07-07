@@ -526,8 +526,8 @@ function DashboardContent() {
 
           {/* 60-Second Onboarding Gateway Modal */}
           {showOnboardModal && (
-            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
-              <div className="w-full max-w-md bg-card-dark border border-border rounded-2xl p-6 shadow-2xl space-y-6 text-center glass-card">
+            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+              <div className="w-full max-w-md bg-card-dark border border-border rounded-2xl p-6 shadow-2xl space-y-6 text-center glass-card max-h-[90vh] overflow-y-auto my-auto">
                 
                 {/* Step indicator header */}
                 <div className="flex justify-between items-center px-1">
