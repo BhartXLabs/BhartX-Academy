@@ -156,3 +156,75 @@ class SpacedRevisionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# Admin CMS creation and update schemas
+class LessonCreate(BaseModel):
+    chapter_id: int
+    title: str
+    description: Optional[str] = None
+    video_provider: str = "youtube"
+    video_id: Optional[str] = None
+    duration_seconds: int = 0
+    order: int = 0
+    prerequisites: Optional[str] = None
+    outcomes: Optional[str] = None
+
+class LessonUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    video_provider: Optional[str] = None
+    video_id: Optional[str] = None
+    duration_seconds: Optional[int] = None
+    order: Optional[int] = None
+    prerequisites: Optional[str] = None
+    outcomes: Optional[str] = None
+
+class ChapterCreate(BaseModel):
+    subject_id: int
+    title: str
+    description: Optional[str] = None
+    order: int = 0
+
+class ChapterUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    order: Optional[int] = None
+
+class SubjectCreate(BaseModel):
+    semester_id: int
+    title: str
+    description: Optional[str] = None
+    code: str
+    order: int = 0
+
+class SubjectUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    code: Optional[str] = None
+    order: Optional[int] = None
+
+class SemesterCreate(BaseModel):
+    course_id: int
+    title: str
+    description: Optional[str] = None
+    order: int = 0
+
+class SemesterUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    order: Optional[int] = None
+
+class CourseCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    code: str
+    banner_url: Optional[str] = None
+    order: int = 0
+
+class CourseUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    code: Optional[str] = None
+    banner_url: Optional[str] = None
+    order: Optional[int] = None
+

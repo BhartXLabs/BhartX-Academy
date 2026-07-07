@@ -333,3 +333,250 @@ export function useNewConversation() {
     mutationFn: () => apiFetch("/ai/doubt/new-session", { method: "POST" }),
   });
 }
+
+// ── Admin Hub Hooks ─────────────────────────────────────────────────────────
+
+export function useAdminAnalytics() {
+  return useQuery({
+    queryKey: ["admin-analytics"],
+    queryFn: () => apiFetch("/admin/analytics"),
+  });
+}
+
+export function useAdminStudents() {
+  return useQuery({
+    queryKey: ["admin-students"],
+    queryFn: () => apiFetch("/admin/students"),
+  });
+}
+
+export function useAdminStudentProgress(userId: number) {
+  return useQuery({
+    queryKey: ["admin-student-progress", userId],
+    queryFn: () => apiFetch(`/admin/users/${userId}/progress`),
+    enabled: !!userId,
+  });
+}
+
+export function useAdminUpdateUserRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: number; role: string }) =>
+      apiFetch(`/admin/users/${userId}/role`, {
+        method: "PUT",
+        body: JSON.stringify({ role }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-students"] });
+    },
+  });
+}
+
+export function useAdminResetUserPassword() {
+  return useMutation({
+    mutationFn: ({ userId, password }: { userId: number; password: string }) =>
+      apiFetch(`/admin/users/${userId}/reset-password`, {
+        method: "POST",
+        body: JSON.stringify({ password }),
+      }),
+  });
+}
+
+export function useAdminDeleteUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: number) =>
+      apiFetch(`/admin/users/${userId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-students"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-analytics"] });
+    },
+  });
+}
+
+// Course/CMS mutations
+export function useAdminCreateSemester() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (sem: { course_id: number; title: string; description?: string; order?: number }) =>
+      apiFetch("/admin/semesters", {
+        method: "POST",
+        body: JSON.stringify(sem),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
+      queryClient.invalidateQueries({ queryKey: ["semesters"] });
+    },
+  });
+}
+
+export function useAdminUpdateSemester() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; title?: string; description?: string; order?: number }) =>
+      apiFetch(`/admin/semesters/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
+      queryClient.invalidateQueries({ queryKey: ["semesters"] });
+    },
+  });
+}
+
+export function useAdminDeleteSemester() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch(`/admin/semesters/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
+      queryClient.invalidateQueries({ queryKey: ["semesters"] });
+    },
+  });
+}
+
+export function useAdminCreateSubject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (sub: { semester_id: number; title: string; description?: string; code: string; order?: number }) =>
+      apiFetch("/admin/subjects", {
+        method: "POST",
+        body: JSON.stringify(sub),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
+      queryClient.invalidateQueries({ queryKey: ["semesters"] });
+    },
+  });
+}
+
+export function useAdminUpdateSubject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; title?: string; description?: string; code?: string; order?: number }) =>
+      apiFetch(`/admin/subjects/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
+      queryClient.invalidateQueries({ queryKey: ["semesters"] });
+    },
+  });
+}
+
+export function useAdminDeleteSubject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch(`/admin/subjects/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
+      queryClient.invalidateQueries({ queryKey: ["semesters"] });
+    },
+  });
+}
+
+export function useAdminCreateChapter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ch: { subject_id: number; title: string; description?: string; order?: number }) =>
+      apiFetch("/admin/chapters", {
+        method: "POST",
+        body: JSON.stringify(ch),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subject"] });
+    },
+  });
+}
+
+export function useAdminUpdateChapter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; title?: string; description?: string; order?: number }) =>
+      apiFetch(`/admin/chapters/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subject"] });
+    },
+  });
+}
+
+export function useAdminDeleteChapter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch(`/admin/chapters/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subject"] });
+    },
+  });
+}
+
+export function useAdminCreateLesson() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (lesson: {
+      chapter_id: number;
+      title: string;
+      description?: string;
+      video_provider?: string;
+      video_id?: string;
+      duration_seconds?: number;
+      order?: number;
+      prerequisites?: string;
+      outcomes?: string;
+    }) =>
+      apiFetch("/admin/lessons", {
+        method: "POST",
+        body: JSON.stringify(lesson),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subject"] });
+    },
+  });
+}
+
+export function useAdminUpdateLesson() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: {
+      id: number;
+      title?: string;
+      description?: string;
+      video_provider?: string;
+      video_id?: string;
+      duration_seconds?: number;
+      order?: number;
+      prerequisites?: string;
+      outcomes?: string;
+    }) =>
+      apiFetch(`/admin/lessons/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subject"] });
+      queryClient.invalidateQueries({ queryKey: ["lesson"] });
+    },
+  });
+}
+
+export function useAdminDeleteLesson() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch(`/admin/lessons/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subject"] });
+    },
+  });
+}
+

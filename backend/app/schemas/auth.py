@@ -62,3 +62,10 @@ class OnboardingRequest(BaseModel):
     weak_subjects: List[str]
     strong_subjects: List[str]
     knowledge_level: str
+
+class UserRoleUpdateRequest(BaseModel):
+    role: str
+
+class AdminResetPasswordRequest(BaseModel):
+    password: str
+
