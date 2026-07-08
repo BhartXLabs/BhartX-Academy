@@ -11,6 +11,7 @@ from app.core.logging import LoggingMiddleware
 from app.core.ratelimit import limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
+import datetime
 
 # Initialize database schemas (auto-creates tables in local development only)
 # NOTE: In production, database schemas are managed strictly via Alembic migrations.
@@ -91,11 +92,62 @@ app.add_middleware(LoggingMiddleware)
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
-# ── Health Check (Required by Render for liveness probe) ─────────────────────
+# ── Health & Readiness Endpoints ────────────────────────────────────────────
 @app.get("/health", tags=["Infrastructure"])
 def health_check():
-    """Render and load balancers ping this to verify the service is alive."""
-    return {"status": "ok", "env": settings.ENV}
+    """
+    Liveness probe — confirms the ASGI server process is alive.
+    Used by Render, load balancers, and uptime monitors.
+    Returns 200 immediately — does NOT check DB connectivity.
+    """
+    return {
+        "status": "ok",
+        "env": settings.ENV,
+        "version": settings.APP_VERSION,
+        "uptime_since": settings.STARTUP_TIME,
+    }
+
+
+@app.get("/ready", tags=["Infrastructure"])
+def readiness_check():
+    """
+    Readiness probe — confirms the service can handle traffic.
+    Verifies live DB connectivity. Returns 503 if DB is unreachable.
+    Used by orchestrators before routing traffic to this instance.
+    """
+    try:
+        with engine.connect() as conn:
+            conn.execute(engine.dialect.statement_compiler(
+                engine.dialect, None
+            ).__class__.__mro__[0].__class__.__mro__[0]  # ping
+            )
+    except Exception:
+        pass  # Engine is sync — simple import-level check is sufficient for SQLite/PG
+
+    try:
+        # Verify DB is reachable with a lightweight query
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_status = "ok"
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unavailable",
+                "db": "unreachable",
+                "detail": str(e),
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            }
+        )
+
+    return {
+        "status": "ready",
+        "db": db_status,
+        "env": settings.ENV,
+        "version": settings.APP_VERSION,
+        "timestamp": datetime.datetime.utcnow().isoformat()
+    }
 
 
 @app.get("/")

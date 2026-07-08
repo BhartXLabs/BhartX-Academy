@@ -1,10 +1,13 @@
 from pydantic_settings import BaseSettings
 from typing import Optional
+import datetime
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "BhartX Academy API"
+    APP_VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     ENV: str = "development"
+    STARTUP_TIME: str = datetime.datetime.utcnow().isoformat()
 
     # JWT Auth Settings
     SECRET_KEY: str = "d6e3dfbc5d483b8a6a6b5a329d2bfbe5efbc20f8c5b16954a2a19ef58b99c0d7"
@@ -26,6 +29,16 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None
+
+    # ── Feature Flags ─────────────────────────────────────────────────────────
+    # Control feature availability without code changes via environment variables.
+    ENABLE_AI: bool = True                   # Master AI switch (Doubt solver, Test gen, Study plan)
+    ENABLE_AI_TEST_GEN: bool = True          # AI-generated practice test questions
+    ENABLE_AI_STUDY_PLAN: bool = True        # Personalised daily study plan generation
+    ENABLE_SM2: bool = True                  # Spaced repetition memory scheduler
+    ENABLE_ANALYTICS: bool = True            # Student cognitive analytics engine
+    ENABLE_REDIS_CACHE: bool = False         # Redis-backed response caching (planned)
+    ENABLE_NOTIFICATION_ENGINE: bool = False # Push notification / reminder service (planned)
 
     class Config:
         env_file = ".env"

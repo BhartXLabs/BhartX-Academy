@@ -252,13 +252,16 @@ class SpacedRevision(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     lesson_id = Column(Integer, ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False, index=True)
-    stage = Column(Integer, default=1)  # 1 (1 day), 2 (3 days), 3 (7 days), 4 (15 days), 5 (30 days)
+    stage = Column(Integer, default=1)        # SM-2 repetition count (1-indexed stage)
+    ease_factor = Column(Float, default=2.5)  # SM-2 E-Factor: starts at 2.5, range [1.3, 5.0]
+    last_quality_rating = Column(Integer, nullable=True)  # Last recall quality (0-5 SM-2 scale)
     scheduled_date = Column(DateTime, nullable=False, index=True)
     is_completed = Column(Boolean, default=False)
     completed_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="spaced_revisions")
     lesson = relationship("Lesson", back_populates="spaced_revisions")
+
 
 
 class Quiz(Base):
