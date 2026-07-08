@@ -77,6 +77,7 @@ class Course(Base):
     # Relationships
     batches = relationship("Batch", back_populates="course", cascade="all, delete-orphan")
     semesters = relationship("Semester", back_populates="course", cascade="all, delete-orphan")
+    subjects = relationship("Subject", back_populates="course", cascade="all, delete-orphan")  # Direct subjects (non-semester courses)
 
 
 class Batch(Base):
@@ -122,10 +123,26 @@ class Semester(Base):
 
 
 class Subject(Base):
+    """
+    Generic Subject/Module — works in two modes:
+
+    Mode A (Semester-based courses, e.g. NIELIT A-Level):
+        Course → Semester → Subject → Chapter → Lesson
+        semester_id is set, course_id is NULL.
+
+    Mode B (Non-semester courses, e.g. UPSC, CCC, AI/ML):
+        Course → Subject → Chapter → Lesson
+        course_id is set, semester_id is NULL.
+
+    One engine handles all course types without code changes.
+    """
     __tablename__ = "subjects"
 
     id = Column(Integer, primary_key=True, index=True)
-    semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=False)
+    # Semester-mode FK (nullable — not required for non-semester courses)
+    semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=True)
+    # Direct course-mode FK (nullable — not required for semester courses)
+    course_id = Column(Integer, ForeignKey("courses.id", ondelete="CASCADE"), nullable=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     code = Column(String, nullable=False)
@@ -133,6 +150,7 @@ class Subject(Base):
     status = Column(String, default="published")  # published, draft, archived
 
     semester = relationship("Semester", back_populates="subjects")
+    course = relationship("Course", back_populates="subjects")
     chapters = relationship("Chapter", back_populates="subject", cascade="all, delete-orphan")
     pyqs = relationship("PYQ", back_populates="subject", cascade="all, delete-orphan")
     mock_tests = relationship("MockTest", back_populates="subject", cascade="all, delete-orphan")
@@ -159,14 +177,16 @@ class Lesson(Base):
     id = Column(Integer, primary_key=True, index=True)
     chapter_id = Column(Integer, ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False)
     title = Column(String, nullable=False)
-    description = Column(Text, nullable=True)  # Markdown notes content
-    video_provider = Column(String, default="youtube")  # youtube, cloudflare, bunny, vimeo
-    video_id = Column(String, nullable=True)
+    description = Column(Text, nullable=True)  # Markdown notes / lesson overview
+    # V1: YouTube only. Future: vimeo, bunny, cloudflare-stream
+    video_provider = Column(String, default="youtube")  # youtube | vimeo | bunny | cloudflare
+    video_id = Column(String, nullable=True)            # e.g. 'dQw4w9WgXcQ' for YouTube
+    notes_url = Column(String, nullable=True)           # Optional: public URL to notes (GitHub, CDN, etc.)
     duration_seconds = Column(Integer, default=0)
     order = Column(Integer, default=0)
     status = Column(String, default="published")
     prerequisites = Column(Text, nullable=True)  # Markdown list / text overview
-    outcomes = Column(Text, nullable=True)  # Markdown list / text outcomes
+    outcomes = Column(Text, nullable=True)        # Markdown learning outcomes
 
     chapter = relationship("Chapter", back_populates="lessons")
     prompts = relationship("VideoPrompt", back_populates="lesson", cascade="all, delete-orphan")
@@ -190,17 +210,20 @@ class VideoPrompt(Base):
 
 
 class Resource(Base):
+    """
+    URL-linked resources attached to lessons.
+    V1: External URLs only (YouTube playlist, public GitHub, Google Docs, etc.)
+    V2+: If file upload is added (assignments, certificates, PDFs), Cloudflare R2 URLs go here.
+    No file data is stored in the DB — only the URL pointer.
+    """
     __tablename__ = "resources"
 
     id = Column(Integer, primary_key=True, index=True)
     lesson_id = Column(Integer, ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)
     title = Column(String, nullable=False)
-    resource_type = Column(String, nullable=False)  # pdf, ppt, zip, code, image
-    url = Column(String, nullable=False)
-    file_size = Column(Integer, default=0)  # In bytes
-    mime_type = Column(String, nullable=True)
-    visibility = Column(String, default="published")  # published, draft, archived
-    downloadable = Column(Boolean, default=True)
+    resource_type = Column(String, nullable=False)  # link, pdf, video, repo, doc
+    url = Column(String, nullable=False)             # Always a public URL — no file upload in V1
+    visibility = Column(String, default="published")  # published, draft
 
     lesson = relationship("Lesson", back_populates="resources")
 

@@ -20,7 +20,7 @@ Most EdTech platforms optimise for watch time. BhartX optimises for **learning o
 |---|---|---|
 | Content delivery | Passive video | Active Feynman Recall workspace |
 | Assessment | End-of-course quiz | Inline MCQ checkpoints + mastery gates |
-| Memory | None | SM-2 Spaced Revision Scheduler |
+| Memory | None | SM-2 Spaced Revision Scheduler (true E-Factor) |
 | Doubt solving | Forum / Q&A | Socratic AI Tutor (Groq → Gemini → Offline) |
 | Analytics | Watch percentage | Cognitive indexes (accuracy, memory, calibration) |
 | Personalisation | None | AI-generated study plans + mistake-journal review |
@@ -28,119 +28,101 @@ Most EdTech platforms optimise for watch time. BhartX optimises for **learning o
 
 ---
 
-## 🏗️ High-Level Architecture
+## 🏗️ V1 Architecture
+
+Simple, proven, and sufficient for the entire V1 roadmap:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                  Student                                │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│            Learning Engine                              │
-│  Pre-lesson focus contract · Dynamic MCQ checkpoints   │
-│  Feynman recall · Metacognitive confidence calibration  │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│            Assessment Engine                            │
-│  Prerequisite locks · Mastery gates (≥ 80%)            │
-│  Confidence-weighted scoring                            │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│            Memory Engine                                │
-│  SM-2 spaced repetition · Decay prediction             │
-│  Flashcard stages 1-5 · Overdue recall dashboard       │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│            AI Tutor Engine                              │
-│  Socratic dialogue · Context-aware last 6 messages     │
-│  Groq LLaMA 3.3 (70B) → Gemini 1.5 Flash → Offline FAQ │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│            Analytics Engine                             │
-│  Learning index · Memory index · Calibration score     │
-│  Priority recommendation vectors                        │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│            Recommendation Engine  (Planned v2)          │
-│  Learning DNA · Predictive analytics · Adaptive paths   │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│         Study Planner + Career Engine (Planned v3)      │
-│  Daily priority scheduler · Exam countdown · Career AI  │
-└─────────────────────────────────────────────────────────┘
+academy.bhartx.in
+        │
+   ┌────▼────┐
+   │  Vercel  │  Next.js 16 PWA (Frontend)
+   └────┬────┘
+        │  HTTPS JSON API
+   ┌────▼────────────────┐
+   │     AWS EC2          │
+   │  ┌───────────────┐  │
+   │  │   FastAPI     │  │  Gunicorn -k UvicornWorker -w 4
+   │  └───────┬───────┘  │
+   │  ┌───────▼───────┐  │
+   │  │  PostgreSQL   │  │  All structured data
+   │  └───────────────┘  │
+   │  ┌───────────────┐  │
+   │  │     Nginx     │  │  Reverse proxy + SSL termination
+   │  └───────────────┘  │
+   └─────────────────────┘
+        │
+   ┌────▼────┐
+   │ YouTube  │  All video content (embedded via video_id)
+   └─────────┘
+        │
+   ┌────▼──────────────────────────┐
+   │       AI Provider Chain        │
+   │  Groq → Gemini → Offline FAQ  │
+   └───────────────────────────────┘
 ```
+
+### What lives where
+
+| Data | Storage |
+|---|---|
+| Users, Auth, Sessions | PostgreSQL |
+| Enrollments, Progress | PostgreSQL |
+| Quiz Attempts, Mock Tests | PostgreSQL |
+| Mistake Journal | PostgreSQL |
+| AI Chat History | PostgreSQL |
+| Notifications | PostgreSQL |
+| Spaced Revision Schedule | PostgreSQL |
+| Analytics | PostgreSQL |
+| **Videos** | **YouTube embed** (only `video_id` stored in DB) |
+| **Notes / Resources** | **Public URL** (GitHub, Google Docs, CDN link) |
+
+> **No file storage in V1.** Students don't upload anything. Content is delivered via YouTube embeds and public URLs. This eliminates an entire infrastructure layer and keeps the system simple and reliable.
 
 ---
 
-## ⚙️ Technical Stack Architecture
+## 🧩 Generic Course Plugin Architecture
+
+The schema is deliberately course-agnostic. One engine handles every course type:
 
 ```
-                ┌──────────────────────────────────┐
-                │    Next.js 16 PWA Client          │
-                │  (Zustand Auth · TanStack Query)  │
-                └─────────────┬────────────────────┘
-                              │  JSON HTTP  Credentials: include
-                              ▼
-                ┌──────────────────────────────────┐
-                │    FastAPI Backend Gateway        │
-                │  Gunicorn -k UvicornWorker -w 4   │
-                └────┬──────────┬──────────┬───────┘
-                     │          │          │
-         SQLAlchemy  │   httpx  │   httpx  │
-                     ▼          │          ▼
-          ┌──────────────┐      │   ┌──────────────┐
-          │  PostgreSQL  │      │   │ LLaMA 3.3 70B│ Primary
-          │  (Production)│      │   │  via Groq    │
-          └──────────────┘      │   └──────┬───────┘
-          ┌──────────────┐      │          │ Fallback
-          │  SQLite      │      │          ▼
-          │  (Dev only)  │      │   ┌──────────────┐
-          └──────────────┘      │   │ Gemini 1.5   │ Secondary
-                                │   │ Flash        │
-          ┌──────────────┐      │   └──────┬───────┘
-          │  Redis       │      │          │ Fallback
-          │  (Planned)   │◄─────┘          ▼
-          │  Session     │         ┌──────────────┐
-          │  Rate limit  │         │ Offline FAQ  │ Last resort
-          │  Task queue  │         │ Rule-based   │
-          └──────────────┘         └──────────────┘
+Mode A — Semester-based (e.g. NIELIT A-Level, B-Level)
+  Course → Semester → Subject → Chapter → Lesson
 
-          ┌──────────────┐
-          │ Cloudflare R2│ (Planned)
-          │ PDFs · Images│
-          │ Resources    │
-          └──────────────┘
+Mode B — Topic-based (e.g. UPSC, CCC, AI/ML, Cyber Security)
+  Course → Subject → Chapter → Lesson
 ```
 
-### AI Fallback Chain
+`Semester` is fully optional. A new course can be added **without any code changes** — just seed the database with the right structure.
 
+### Lesson Schema (the content atom)
+```sql
+lessons
+  id              INT         Primary key
+  chapter_id      INT         FK → chapters
+  title           VARCHAR     "Introduction to Python Lists"
+  description     TEXT        Markdown notes / lesson overview
+  video_provider  VARCHAR     'youtube' (default) | 'vimeo' | 'bunny'
+  video_id        VARCHAR     YouTube video ID e.g. 'dQw4w9WgXcQ'
+  notes_url       VARCHAR     Public URL to notes (optional)
+  duration_seconds INT        Video length in seconds
+  order           INT         Position within chapter
+  status          VARCHAR     'published' | 'draft'
+  prerequisites   TEXT        Markdown prerequisite list
+  outcomes        TEXT        Markdown learning outcomes
 ```
-Groq LLaMA 3.3 (70B)   — Primary   (fast inference, low cost)
-        ↓ timeout / 5xx
-Gemini 1.5 Flash        — Secondary (Google backbone reliability)
-        ↓ timeout / quota
-Offline FAQ Matcher     — Last resort (keyword rule engine, zero cost)
-```
 
-### Database Strategy
+### When will Cloudflare R2 be added?
 
-| Environment | Database | Reasoning |
-|---|---|---|
-| Development | SQLite | Zero-config local setup |
-| Production | PostgreSQL only | ACID compliance, concurrent writes, JSON indexing |
+Only when one of these features is built:
+- Student assignment / project file upload
+- Admin PDF notes upload
+- Generated completion certificates
+- Profile pictures
+- AI-generated downloadable files
+- Coding project ZIP submissions
+
+Until then: **no object storage needed.**
 
 ---
 
@@ -157,21 +139,23 @@ Offline FAQ Matcher     — Last resort (keyword rule engine, zero cost)
 - **Mastery Gates** — ≥ 80% quiz score required to unlock next chapter.
 - **Confidence-Weighted Scoring** — High-confidence wrong answers penalised more.
 
-### 3. Memory Engine (SM-2 Scheduler)
-- Implements the **SuperMemo-2 algorithm** for spaced repetition.
-- Predicts memory decay; schedules next review based on recall performance.
-- Stages 1–5 tracked per flashcard; overdue cards surfaced on dashboard.
+### 3. Memory Engine (True SM-2 Algorithm)
+- Implements the **SuperMemo-2 algorithm** with adaptive E-Factor.
+- Ease Factor (EF) starts at 2.5 and updates per recall quality: `EF' = EF + (0.1 - (5-q) * (0.08 + (5-q) * 0.02))`
+- EF clamped to [1.3, 5.0]. Failed recalls reset interval to 1 day with EF penalty.
+- 5 review stages with adaptive intervals based on individual recall performance.
 
 ### 4. Socratic AI Doubt Solver
 - Async 2× retry with backoff before falling to next provider.
-- Conversation history (last 6 messages) stored server-side — prevents token overload.
+- Conversation history (last 6 messages) stored server-side.
 - Socratic dialogue mode: AI guides rather than just answers.
+- **Fallback chain**: Groq LLaMA 3.3 (70B) → Gemini 1.5 Flash → Offline FAQ Matcher
 
 ### 5. Analytics Engine
 - **Learning Index** — Quiz accuracy + lesson completion rate.
-- **Memory Index** — Spaced revision compliance + mistake resolution rate.
+- **Memory Index** — SM-2 revision compliance + mistake resolution rate.
 - **Calibration Score** — Confidence accuracy correlation.
-- **Recommendation Vectors** — Priority-sorted action list (overdue → low-accuracy → unresolved mistakes).
+- **Recommendation Vectors** — Priority-sorted action list (overdue → low accuracy → unresolved mistakes).
 
 ---
 
@@ -181,35 +165,15 @@ Offline FAQ Matcher     — Last resort (keyword rule engine, zero cost)
 |---|---|
 | Authentication | JWT (HS256) stored in `HttpOnly` cookies — XSS-proof |
 | Session refresh | Sliding refresh token rotation on every authenticated request |
+| CSRF Protection | Origin + Referer header validation on all state-mutating requests |
 | Google OAuth | Server-side `id_token` verification via Google token info endpoint |
 | Password storage | `bcrypt` hashing with adaptive cost factor |
-| Rate limiting | Per-IP middleware (AI endpoints: 10 req/min; Auth: 5 req/min) |
+| Rate limiting | Per-IP via slowapi (AI: 20 req/min; Auth: 5 attempts) |
 | CORS | Strict allowlist — only registered frontend origins |
 | Input validation | Pydantic v2 schema validation on all request bodies |
+| Security headers | `X-Content-Type-Options`, `X-Frame-Options`, `HSTS` (prod) |
 | Cookie policy | Dev: `Secure=False; SameSite=Lax` / Prod: `Secure=True; SameSite=None` |
 | SQL injection | SQLAlchemy ORM parameterised queries — no raw SQL |
-
----
-
-## 🏁 Feature Flags (Environment Variables)
-
-Control feature availability without code changes:
-
-```env
-# AI Features
-ENABLE_AI=true                   # Master AI switch (Doubt solver, Test gen, Study plan)
-ENABLE_AI_TEST_GEN=true          # AI-generated practice test questions
-ENABLE_AI_STUDY_PLAN=true        # Personalised daily study plan generation
-
-# Cognitive Engine Toggles
-ENABLE_SM2=true                  # Spaced repetition memory scheduler
-ENABLE_STUDY_PLAN=true           # Study planner dashboard widget
-ENABLE_ANALYTICS=true            # Student cognitive analytics engine
-
-# Infrastructure (Planned)
-ENABLE_REDIS_CACHE=false         # Redis-backed response caching
-ENABLE_NOTIFICATION_ENGINE=false # Push notification / reminder service
-```
 
 ---
 
@@ -217,19 +181,34 @@ ENABLE_NOTIFICATION_ENGINE=false # Push notification / reminder service
 
 ### Health Endpoints
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /health` | Liveness check — server is running |
-| `GET /ready` | Readiness check — DB connection alive |
+| Endpoint | Type | Purpose |
+|---|---|---|
+| `GET /health` | Liveness | Server process alive — returns 200 immediately |
+| `GET /ready` | Readiness | DB connectivity check — returns 503 if DB unreachable |
 
-### Logging Strategy
-- Structured JSON logs: `timestamp`, `level`, `module`, `message`.
-- All AI provider calls logged with latency and fallback chain events.
-- Auth events (login, logout, token refresh, failures) logged with IP.
+### Logging
+- **Structured JSON logs** — every line is a valid JSON object parseable by Datadog, CloudWatch, Render Logs.
+- Fields per log: `time`, `level`, `module`, `message`, `method`, `path`, `status`, `duration_ms`, `request_id`, `env`
+- Health/ready probe traffic suppressed from access logs.
 
-### Error Tracking (Planned)
-- Sentry integration for production exception capture.
-- Uptime monitoring via BetterUptime / UptimeRobot.
+---
+
+## 🏁 Feature Flags (Environment Variables)
+
+```env
+# AI Features
+ENABLE_AI=true                   # Master AI switch
+ENABLE_AI_TEST_GEN=true          # AI-generated practice tests
+ENABLE_AI_STUDY_PLAN=true        # Personalised daily study plan
+
+# Cognitive Engine
+ENABLE_SM2=true                  # Spaced repetition scheduler
+ENABLE_ANALYTICS=true            # Student cognitive analytics
+
+# Infrastructure (off by default — not yet built)
+ENABLE_REDIS_CACHE=false
+ENABLE_NOTIFICATION_ENGINE=false
+```
 
 ---
 
@@ -243,26 +222,35 @@ backend/
 │   │   ├── endpoints/
 │   │   │   ├── auth.py          # Login, signup, logout, Google OAuth, token refresh
 │   │   │   ├── courses.py       # Syllabus, lessons, unlock gate checks
-│   │   │   ├── journal.py       # Mistake journal CRUD + resolve endpoint
-│   │   │   ├── ai.py            # Socratic chat, AI test gen, study plan AI
-│   │   │   └── analytics.py     # Student cognitive statistics API
+│   │   │   ├── journal.py       # Mistake journal CRUD + resolve
+│   │   │   ├── ai.py            # Socratic chat, AI test gen, study plan, coach tip
+│   │   │   ├── analytics.py     # Student cognitive statistics
+│   │   │   ├── progress.py      # Lesson progress, SM-2 revision completion
+│   │   │   ├── quizzes.py       # Quiz attempts + mastery gate evaluation
+│   │   │   ├── search.py        # Universal search across course content
+│   │   │   ├── notifications.py # Notification read/mark endpoints
+│   │   │   ├── mocks.py         # Mock test creation and attempts
+│   │   │   └── admin.py         # Admin dashboard (role-gated)
 │   │   └── router.py
 │   ├── core/
-│   │   ├── config.py            # Pydantic Settings v2 — ENV, API keys, CORS, flags
-│   │   └── security.py          # JWT create/verify, bcrypt password hashing
+│   │   ├── config.py            # Pydantic Settings v2 + Feature Flags
+│   │   ├── security.py          # JWT create/verify, bcrypt hashing
+│   │   ├── logging.py           # Structured JSON logging + middleware
+│   │   └── ratelimit.py         # slowapi rate limiter config
 │   ├── db/
-│   │   └── session.py           # SQLAlchemy async engine + session factory
+│   │   └── session.py           # SQLAlchemy engine + session factory
 │   ├── models/
-│   │   └── all_models.py        # Unified ORM (29 tables)
-│   ├── repositories/            # Repository pattern — DB abstraction layer
+│   │   └── all_models.py        # Unified ORM (all tables)
+│   ├── repositories/            # Repository pattern — DB abstraction
 │   └── services/
 │       ├── ai/
-│       │   ├── providers.py     # Async LLM clients with Groq→Gemini→Offline chain
-│       │   └── agents/          # Tutor, Coach, Examiner agent behaviours
-│       └── analytics_service.py
+│       │   ├── providers.py     # Groq → Gemini → Offline fallback chain
+│       │   ├── gateway.py       # AI gateway — routes to correct agent
+│       │   └── agents/          # Tutor, Coach, Examiner behaviours
+│       └── analytics_service.py # Dynamic cognitive analytics
 ├── seed/
-│   └── seed_data.py             # Curriculum mock data seeder
-├── Dockerfile                   # Gunicorn -k UvicornWorker -w 4
+│   └── seed_data.py
+├── Dockerfile
 └── requirements.txt
 ```
 
@@ -270,33 +258,34 @@ backend/
 ```
 frontend/
 ├── public/
-│   ├── manifest.json            # PWA manifest (standalone, theme, icons)
-│   └── sw.js                    # Service Worker — cache-first asset strategy
+│   ├── manifest.json            # PWA manifest
+│   └── sw.js                    # Service Worker — cache-first
 ├── src/
 │   ├── app/
-│   │   ├── (dashboard)/         # Route group — shared ProtectedRoute + layout
-│   │   │   ├── dashboard/       # Main workspace, analytics, overdue cards
-│   │   │   ├── courses/         # Syllabus index, chapter/lesson pages
+│   │   ├── (dashboard)/         # All authenticated pages (shared layout)
+│   │   │   ├── dashboard/       # Analytics, overdue revisions, recommendations
+│   │   │   ├── courses/         # Syllabus tree (Course → Sem → Subject → Chapter)
 │   │   │   ├── lessons/[id]/    # Video player, MCQ checkpoints, Feynman recall
-│   │   │   ├── journal/         # Mistake notebook, review games
-│   │   │   ├── ai-doubt/        # Socratic AI chat with markdown rendering
+│   │   │   ├── journal/         # Mistake notebook + resolve workflow
+│   │   │   ├── ai-doubt/        # Socratic AI chat
 │   │   │   ├── ai-test/         # AI-generated practice tests
-│   │   │   ├── study-plan/      # Daily priority planner
-│   │   │   ├── pyqs/            # Previous year questions bank
-│   │   │   ├── profile/         # Student profile page
+│   │   │   ├── study-plan/      # Daily AI study planner
+│   │   │   ├── pyqs/            # Previous year question bank
+│   │   │   ├── mocks/           # Mock test sessions
+│   │   │   ├── quizzes/         # Chapter mastery quizzes
+│   │   │   ├── profile/         # Student profile
 │   │   │   ├── settings/        # Account settings
-│   │   │   └── admin/           # Admin dashboard (role-gated)
-│   │   ├── login/               # Auth page — email/password + Google OAuth
+│   │   │   └── admin/           # Admin dashboard
+│   │   ├── login/               # Auth — email/password + Google OAuth redirect
 │   │   └── page.tsx             # Landing page
 │   ├── components/
-│   │   ├── ProtectedRoute.tsx   # JWT auth guard
-│   │   ├── Navbar.tsx           # Global header — search, streak, hamburger
-│   │   └── Sidebar.tsx          # Responsive nav drawer (Zustand state)
-│   ├── hooks/
-│   │   └── useApi.ts            # TanStack Query data-fetching hooks
+│   │   ├── ProtectedRoute.tsx
+│   │   ├── Navbar.tsx
+│   │   └── Sidebar.tsx
+│   ├── hooks/useApi.ts
 │   └── store/
-│       ├── useAuthStore.ts      # Zustand user session state
-│       └── useSidebarStore.ts   # Zustand sidebar mobile open/close state
+│       ├── useAuthStore.ts
+│       └── useSidebarStore.ts
 ```
 
 ---
@@ -304,53 +293,42 @@ frontend/
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Python 3.11+
-- Node.js 20+
-- PostgreSQL (production) or SQLite (dev — auto-created)
+- Python 3.11+  |  Node.js 20+  |  PostgreSQL (prod) or SQLite (dev, auto-created)
 
-### Backend Setup
+### Backend
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate       # macOS/Linux
-.\venv\Scripts\activate        # Windows
+python -m venv venv && source venv/bin/activate   # macOS/Linux
+# .\venv\Scripts\activate                           # Windows
 
 pip install -r requirements.txt
-cp .env.example .env           # Configure your environment
+cp .env.example .env      # Fill in your keys
 
-python seed/seed_data.py       # Seed curriculum data
+python seed/seed_data.py  # Creates tables + seeds curriculum
 uvicorn main:app --reload --port 8000
 ```
 
-### Frontend Setup
+### Frontend
 ```bash
 cd frontend
 npm install
-cp .env.local.example .env.local   # Add NEXT_PUBLIC_API_URL
+# Create .env.local with: NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
 npm run dev
 ```
 
-### Environment Variables (Backend)
+### Environment Variables (Backend `.env`)
 ```env
-# App
-ENV=development                    # development | production
-SECRET_KEY=your-256-bit-secret
+ENV=development
+SECRET_KEY=your-256-bit-random-secret
+DATABASE_URL=sqlite:///./bhartx_academy.db     # Dev
+# DATABASE_URL=postgresql+asyncpg://...         # Prod
 
-# Database
-DATABASE_URL=postgresql+asyncpg://user:pass@host/db   # Production
-# DATABASE_URL=sqlite+aiosqlite:///./bhartx.db         # Dev fallback
+ALLOWED_ORIGINS=http://localhost:3000
 
-# CORS
-ALLOWED_ORIGINS=http://localhost:3000,https://academy.bhartx.in
-
-# AI Providers
 GROQ_API_KEY=gsk_...
 GEMINI_API_KEY=AIza...
-
-# Google OAuth
 GOOGLE_CLIENT_ID=...apps.googleusercontent.com
 
-# Feature Flags
 ENABLE_AI=true
 ENABLE_SM2=true
 ENABLE_ANALYTICS=true
@@ -361,53 +339,55 @@ ENABLE_ANALYTICS=true
 ## ☁️ Production Deployment
 
 ### Frontend → Vercel
-- Root directory: `frontend/`
-- Env var: `NEXT_PUBLIC_API_URL=https://api.bhartx.in/api/v1`
+```
+Root Directory  : frontend/
+NEXT_PUBLIC_API_URL = https://api.bhartx.in/api/v1
+```
 
-### Backend → Render (Docker)
-Dockerfile start command:
-```bash
+### Backend → AWS EC2 (Docker)
+```dockerfile
+# Dockerfile start command:
 gunicorn main:app -k uvicorn.workers.UvicornWorker -w 4 --bind 0.0.0.0:8000
 ```
-Required env vars in Render dashboard:
 ```
 ENV=production
-DATABASE_URL=postgresql+asyncpg://...?ssl=require
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost/bhartx?ssl=require
 ALLOWED_ORIGINS=https://academy.bhartx.in
 GROQ_API_KEY=...
 GEMINI_API_KEY=...
 GOOGLE_CLIENT_ID=...
 ```
 
-### Storage → Cloudflare R2 (Planned)
-PDFs, resource files, and images will be hosted on **Cloudflare R2** (S3-compatible, zero egress cost).
+Nginx config proxies `academy.bhartx.in/api` → FastAPI on port 8000.
 
 ---
 
 ## 🗺️ Roadmap
 
 ```
-V1 — Foundation (Current)
-  ├── A-Level Computer Science curriculum
+V1 — Private Beta (Current)
+  ├── NIELIT A-Level Computer Science
   ├── CCC (Course on Computer Concepts)
-  ├── Core Cognitive Engines (Learning, Assessment, Memory, AI, Analytics)
-  ├── Google OAuth + JWT authentication
+  ├── All 5 Cognitive Engines implemented
+  ├── Google OAuth + JWT auth
   ├── PWA + offline support
-  └── Admin dashboard
+  ├── Admin dashboard
+  └── AWS EC2 + PostgreSQL deployment
 
 V2 — Expansion + Intelligence
-  ├── UPSC Prelims · AI · IoT · Cyber Security · Cloud courses
+  ├── UPSC Prelims, O-Level, AI/ML, Cyber Security, Cloud courses
+  │   (same engine, just new seed data — no code changes)
   ├── Redis + Celery notification engine (revision reminders)
-  ├── Universal search across all content
+  ├── Universal push notifications
   ├── Recommendation Engine (Learning DNA)
-  ├── Predictive analytics + adaptive learning paths
-  └── Course Plugin System (add courses without code changes)
+  └── Course Plugin System (admin can add courses via UI)
 
 V3 — Adaptive Operating System
   ├── Knowledge Graph per student
-  ├── Full adaptive learning (AI re-sequences content per learner)
-  ├── Career Engine (goal-aligned curriculum mapping)
-  ├── Peer collaboration + cohort features
+  ├── Full adaptive learning (AI re-sequences content)
+  ├── Career Engine (goal-aligned curriculum)
+  ├── Student assignment upload → Cloudflare R2
+  ├── Generated PDF certificates → Cloudflare R2
   └── Mobile app (React Native)
 ```
 
@@ -415,24 +395,22 @@ V3 — Adaptive Operating System
 
 ## 📚 Developer Documentation
 
-Full technical docs in [`/docs`](./docs/):
+Full docs in [`/docs`](./docs/) (in progress):
 
-| Document | Contents |
+| Document | Status |
 |---|---|
-| [Architecture Decisions](./docs/ADR.md) | Why specific tech choices were made |
-| [API Reference](./docs/API.md) | All endpoints, request/response schemas |
-| [Database Schema](./docs/SCHEMA.md) | All 29 tables, relationships, indexes |
-| [AI Architecture](./docs/AI.md) | LLM chain, agents, prompt design |
-| [Cognitive Engine](./docs/COGNITIVE_ENGINE.md) | SM-2 implementation, analytics formulas |
-| [Security Guide](./docs/SECURITY.md) | Auth flows, token lifecycle, hardening |
-| [Deployment Guide](./docs/DEPLOYMENT.md) | Render + Vercel + Docker full setup |
-| [Contributing Guide](./docs/CONTRIBUTING.md) | Dev workflow, PR standards, code style |
+| [API Reference](./docs/API.md) | In progress |
+| [Database Schema](./docs/SCHEMA.md) | In progress |
+| [AI Architecture](./docs/AI.md) | In progress |
+| [Cognitive Engine](./docs/COGNITIVE_ENGINE.md) | In progress |
+| [Security Guide](./docs/SECURITY.md) | In progress |
+| [Deployment Guide](./docs/DEPLOYMENT.md) | In progress |
 
 ---
 
 ## 📄 License
 
-MIT License — see [LICENSE](./LICENSE) for details.
+MIT — see [LICENSE](./LICENSE)
 
 ---
 
